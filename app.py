@@ -31,7 +31,7 @@ def load_data():
 df = load_data()
 
 # --------------------------------------------------
-# LIMPIEZA Y NORMALIZACIÓN
+# LIMPIEZA BÁSICA
 # --------------------------------------------------
 df['AÑO'] = pd.to_numeric(df['AÑO'], errors='coerce')
 df['Mes'] = pd.to_numeric(df['Mes'], errors='coerce')
@@ -49,10 +49,24 @@ df['Mes_nombre'] = df['Mes'].map(meses)
 orden_meses = list(meses.values())
 
 # --------------------------------------------------
-# SIDEBAR – FILTROS
+# SIDEBAR – NAVEGACIÓN Y FILTROS
 # --------------------------------------------------
 with st.sidebar:
-    st.header("🎛️ Filtros")
+
+    st.header("🧭 Navegación")
+
+    dashboard = st.radio(
+        "Selecciona un dashboard",
+        [
+            "Dashboard por Área",
+            "Dashboard En Curso",
+            "Dashboard No Cumple"
+        ]
+    )
+
+    st.divider()
+
+    st.header("🎛️ Filtros globales")
 
     anio = st.multiselect(
         "Año",
@@ -69,62 +83,90 @@ with st.sidebar:
         sorted(df['Categoría'].dropna().unique())
     )
 
+# --------------------------------------------------
+# APLICACIÓN DE FILTROS
+# --------------------------------------------------
+df_filtrado = df.copy()
+
 if anio:
-    df = df[df['AÑO'].isin(anio)]
+    df_filtrado = df_filtrado[df_filtrado['AÑO'].isin(anio)]
 
 if mes:
-    df = df[df['Mes_nombre'].isin(mes)]
+    df_filtrado = df_filtrado[df_filtrado['Mes_nombre'].isin(mes)]
 
 if categoria:
-    df = df[df['Categoría'].isin(categoria)]
+    df_filtrado = df_filtrado[df_filtrado['Categoría'].isin(categoria)]
 
-# --------------------------------------------------
-# DASHBOARD: COMPORTAMIENTO POR ÁREA
-# --------------------------------------------------
-st.markdown("## 📌 Comportamiento por Área")
+# ==================================================
+# DASHBOARD 1 – COMPORTAMIENTO POR ÁREA
+# ==================================================
+if dashboard == "Dashboard por Área":
 
-st.markdown(
-    """
-    Visualiza la **cantidad de PQRSDF por área** en el periodo seleccionado,
-    permitiendo identificar **concentración de solicitudes, quejas o peticiones**
-    por dependencia.
-    """
-)
+    st.markdown("## 📌 Comportamiento por Área")
 
-# Agrupación por área
-df_area = (
-    df
-    .groupby('Area principal', as_index=False)
-    .size()
-    .rename(columns={'size': 'Cantidad PQRSDF'})
-    .sort_values('Cantidad PQRSDF', ascending=False)
-)
+    df_area = (
+        df_filtrado
+        .groupby('Area principal', as_index=False)
+        .size()
+        .rename(columns={'size': 'Cantidad PQRSDF'})
+        .sort_values('Cantidad PQRSDF', ascending=False)
+    )
 
-# --------------------------------------------------
-# GRÁFICO DE BARRAS – TOP POR ÁREA
-# --------------------------------------------------
-fig = px.bar(
-    df_area,
-    x='Area principal',
-    y='Cantidad PQRSDF',
-    title="Cantidad de PQRSDF por Área",
-    text='Cantidad PQRSDF'
-)
+    fig = px.bar(
+        df_area,
+        x='Area principal',
+        y='Cantidad PQRSDF',
+        text='Cantidad PQRSDF',
+        title="Cantidad de PQRSDF por Área"
+    )
 
-fig.update_layout(
-    xaxis_title="Área",
-    yaxis_title="Cantidad de PQRSDF",
-    xaxis_tickangle=-45
-)
+    fig.update_layout(xaxis_tickangle=-45)
 
-st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
-# --------------------------------------------------
-# TABLA DE APOYO
-# --------------------------------------------------
-st.subheader("📋 Detalle por Área")
+    st.dataframe(df_area, use_container_width=True)
 
-st.dataframe(
-    df_area,
-    use_container_width=True
-)
+# ==================================================
+# DASHBOARD 2 – EN CURSO
+# ==================================================
+elif dashboard == "Dashboard En Curso":
+
+    st.markdown("## ⏳ PQRSDF en Curso")
+
+    df_curso = df_filtrado[df_filtrado['Estado'] != 'Cerrado']
+
+    col1, col2 = st.columns(2)
+
+    col1.metric("Casos en curso", len(df_curso))
+    col2.metric("Áreas involucradas", df_curso['Area principal'].nunique())
+
+    fig = px.bar(
+        df_curso,
+        x='Area principal',
+        title="PQRSDF en Curso por Área"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+# ==================================================
+# DASHBOARD 3 – NO CUMPLE
+# ==================================================
+elif dashboard == "Dashboard No Cumple":
+
+    st.markdown("## ❌ PQRSDF No Cumple")
+
+    # Ajusta esta condición cuando trabajemos SLA
+    df_no_cumple = df_filtrado[df_filtrado['Estado'] == 'No Cumple']
+
+    col1, col2 = st.columns(2)
+
+    col1.metric("Casos No Cumple", len(df_no_cumple))
+    col2.metric("Áreas críticas", df_no_cumple['Area principal'].nunique())
+
+    fig = px.bar(
+        df_no_cumple,
+        x='Area principal',
+        title="PQRSDF No Cumple por Área"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
