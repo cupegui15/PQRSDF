@@ -18,7 +18,7 @@ URL_LOGO_UR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQY0ZMIXOVuz
 URL_BANNER_IMG = "https://uredu-my.sharepoint.com/personal/cristian_upegui_urosario_edu_co/Documents/Imagenes/Imagen%201.jpg"
 
 # ==================================================
-# CSS INSTITUCIONAL (MISMO DEL FORMULARIO)
+# CSS INSTITUCIONAL (HOMOLOGADO AL FORMULARIO)
 # ==================================================
 st.markdown("""
 <style>
@@ -90,7 +90,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==================================================
-# FUENTE DE DATOS (GOOGLE SHEETS CSV)
+# FUENTE DE DATOS (GOOGLE SHEETS COMO CSV)
 # ==================================================
 CSV_URL = (
     "https://docs.google.com/spreadsheets/d/"
@@ -112,10 +112,11 @@ df['Mes'] = pd.to_numeric(df['Mes'], errors='coerce')
 df = df.dropna(subset=['AÑO', 'Mes'])
 
 meses = {
-    1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",
-    5:"Mayo",6:"Junio",7:"Julio",8:"Agosto",
-    9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+    5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+    9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
 }
+
 df['Mes_nombre'] = df['Mes'].map(meses)
 df['Semestre'] = df['Mes'].apply(lambda x: "Semestre 1" if x <= 6 else "Semestre 2")
 
@@ -147,7 +148,7 @@ categoria = st.sidebar.multiselect(
 )
 
 # ==================================================
-# APLICAR FILTROS
+# APLICACIÓN DE FILTROS
 # ==================================================
 df_f = df.copy()
 
@@ -161,20 +162,38 @@ if categoria:
     df_f = df_f[df_f['Categoría'].isin(categoria)]
 
 # ==================================================
+# KPI: NO CUMPLE SLA (GLOBAL)
+# ==================================================
+df_no_cumple = df_f[
+    df_f['SLA']
+    .astype(str)
+    .str.strip()
+    .str.lower()
+    .isin(['no cumple', 'nocumple', 'no'])
+]
+
+cantidad_no_cumple = len(df_no_cumple)
+
+# ==================================================
 # KPIs SUPERIORES (CARDS)
 # ==================================================
 st.markdown('<div class="section-title">Indicadores generales</div>', unsafe_allow_html=True)
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3, c4, c5 = st.columns(5)
 
 with c1:
-    st.markdown(f"<div class='card'><h4>Total PQRSDF</h4><h2>{len(df_f)}</h2></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='card'><h4>📄 Total PQRSDF</h4><h2>{len(df_f)}</h2></div>", unsafe_allow_html=True)
 with c2:
-    st.markdown(f"<div class='card'><h4>Áreas</h4><h2>{df_f['Area principal'].nunique()}</h2></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='card'><h4>🏢 Áreas</h4><h2>{df_f['Area principal'].nunique()}</h2></div>", unsafe_allow_html=True)
 with c3:
-    st.markdown(f"<div class='card'><h4>Categorías</h4><h2>{df_f['Categoría'].nunique()}</h2></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='card'><h4>🗂️ Categorías</h4><h2>{df_f['Categoría'].nunique()}</h2></div>", unsafe_allow_html=True)
 with c4:
-    st.markdown(f"<div class='card'><h4>Periodos</h4><h2>{df_f[['AÑO','Mes_nombre']].drop_duplicates().shape[0]}</h2></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='card'><h4>🗓️ Periodos</h4><h2>{df_f[['AÑO','Mes_nombre']].drop_duplicates().shape[0]}</h2></div>", unsafe_allow_html=True)
+with c5:
+    st.markdown(
+        f"<div class='card'><h4>❌ No Cumple SLA</h4><h2>{cantidad_no_cumple}</h2></div>",
+        unsafe_allow_html=True
+    )
 
 st.markdown("---")
 
@@ -235,38 +254,4 @@ elif dashboard == "⏳ En Curso":
     st.dataframe(df_area, use_container_width=True)
 
 # ==================================================
-# DASHBOARD: NO CUMPLE (SLA)
-# ==================================================
-elif dashboard == "❌ No Cumple (SLA)":
-
-    st.markdown('<div class="section-title">Incumplimiento de SLA</div>', unsafe_allow_html=True)
-
-    df_nc = df_f[
-        df_f['SLA']
-        .astype(str)
-        .str.lower()
-        .isin(['no cumple','nocumple','no'])
-    ]
-
-    if df_nc.empty:
-        st.success("✅ No se registran incumplimientos de SLA en el periodo seleccionado.")
-    else:
-        df_area = (
-            df_nc.groupby("Area principal")
-            .size()
-            .reset_index(name="No Cumple SLA")
-            .sort_values("No Cumple SLA", ascending=False)
-        )
-
-        fig = px.bar(
-            df_area,
-            x="Area principal",
-            y="No Cumple SLA",
-            text="No Cumple SLA",
-            color="No Cumple SLA",
-            color_continuous_scale="Reds"
-        )
-        fig.update_layout(xaxis_tickangle=-40)
-
-        st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(df_nc, use_container_width=True)
+# DASHBOARD: NO CUM
