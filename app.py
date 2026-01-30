@@ -19,13 +19,13 @@ st.title("📊 Dashboard PQRSDF – Análisis y Cumplimiento")
 # PARÁMETROS GOOGLE SHEETS
 # --------------------------------------------------
 SHEET_ID = "1FjApsoQIvz_nmaRCbO7NDD7N9M_noQaH"
-WORKSHEET_NAME = "Base PQRSDF"  # nombre esperado de la pestaña
+WORKSHEET_GID = 925681863  # <-- GID tomado de la URL
 
 # --------------------------------------------------
 # CARGA DE DATOS DESDE GOOGLE SHEETS
 # --------------------------------------------------
 @st.cache_data(ttl=300)
-def load_data_from_gsheets(sheet_id, worksheet_name):
+def load_data_from_gsheets(sheet_id, worksheet_gid):
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets.readonly",
@@ -42,18 +42,14 @@ def load_data_from_gsheets(sheet_id, worksheet_name):
     try:
         sheet = client.open_by_key(sheet_id)
     except Exception:
-        st.error("❌ No se pudo abrir el Google Sheet. Verifica el SHEET_ID y que esté compartido con la service account.")
+        st.error("❌ No se pudo abrir el Google Sheet. Verifica que esté compartido con la service account.")
         st.stop()
 
-    # 🔹 Intentar por nombre, si falla usar la primera pestaña
     try:
-        worksheet = sheet.worksheet(worksheet_name)
+        worksheet = sheet.get_worksheet_by_id(worksheet_gid)
     except Exception:
-        st.warning(
-            f"⚠️ No se encontró la pestaña '{worksheet_name}'. "
-            "Se usará automáticamente la primera hoja del archivo."
-        )
-        worksheet = sheet.get_worksheet(0)
+        st.error("❌ No se pudo acceder a la pestaña indicada por GID.")
+        st.stop()
 
     data = worksheet.get_all_records()
     df = pd.DataFrame(data)
@@ -122,7 +118,7 @@ def calcular_kpis(df):
 # --------------------------------------------------
 # EJECUCIÓN PRINCIPAL
 # --------------------------------------------------
-df = load_data_from_gsheets(SHEET_ID, WORKSHEET_NAME)
+df = load_data_from_gsheets(SHEET_ID, WORKSHEET_GID)
 
 # --------------------------------------------------
 # FILTROS
@@ -180,10 +176,4 @@ st.plotly_chart(
 )
 
 # --------------------------------------------------
-# TABLA DETALLADA
-# --------------------------------------------------
-st.subheader("📋 Detalle de PQRSDF")
-st.dataframe(
-    df.sort_values("fecha_radicacion", ascending=False),
-    use_container_width=True
-)
+# TA
