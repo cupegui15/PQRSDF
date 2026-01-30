@@ -35,9 +35,32 @@ df = load_data()
 # LIMPIEZA BÁSICA
 # --------------------------------------------------
 df['AÑO'] = pd.to_numeric(df['AÑO'], errors='coerce')
-df['Mes'] = df['Mes'].astype(str)
+df['Mes'] = pd.to_numeric(df['Mes'], errors='coerce')
 
 df = df.dropna(subset=['AÑO', 'Mes'])
+
+# --------------------------------------------------
+# CONVERSIÓN DE MES A NOMBRE
+# --------------------------------------------------
+meses = {
+    1: "Enero",
+    2: "Febrero",
+    3: "Marzo",
+    4: "Abril",
+    5: "Mayo",
+    6: "Junio",
+    7: "Julio",
+    8: "Agosto",
+    9: "Septiembre",
+    10: "Octubre",
+    11: "Noviembre",
+    12: "Diciembre"
+}
+
+df['Mes_nombre'] = df['Mes'].map(meses)
+
+# Orden correcto de meses
+orden_meses = list(meses.values())
 
 # --------------------------------------------------
 # FILTROS (SOLO AÑO Y MES)
@@ -46,17 +69,19 @@ with st.sidebar:
     st.header("🎛️ Filtros")
     anio = st.multiselect(
         "Año",
-        sorted(df['AÑO'].dropna().unique())
+        sorted(df['AÑO'].unique())
     )
+
     mes = st.multiselect(
         "Mes",
-        sorted(df['Mes'].dropna().unique())
+        orden_meses
     )
 
 if anio:
     df = df[df['AÑO'].isin(anio)]
+
 if mes:
-    df = df[df['Mes'].isin(mes)]
+    df = df[df['Mes_nombre'].isin(mes)]
 
 # --------------------------------------------------
 # KPIs BÁSICOS
@@ -68,7 +93,7 @@ c1.metric("📄 Total PQRSDF", len(df))
 c2.metric("📂 Total Categorías", df['Categoría'].nunique())
 
 # --------------------------------------------------
-# GRÁFICA SIMPLE
+# GRÁFICA: PQRSDF POR CATEGORÍA
 # --------------------------------------------------
 st.subheader("PQRSDF por Categoría")
 
@@ -76,7 +101,7 @@ fig = px.bar(
     df,
     x='Categoría',
     title="Cantidad de PQRSDF por Categoría",
-    labels={'Categoría': 'Categoría', 'count': 'Cantidad'},
+    labels={'Categoría': 'Categoría'},
 )
 
 st.plotly_chart(fig, use_container_width=True)
@@ -91,7 +116,7 @@ st.dataframe(
         [
             'num caso',
             'AÑO',
-            'Mes',
+            'Mes_nombre',
             'Categoría',
             'Area principal',
             'Estado',
