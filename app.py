@@ -19,7 +19,7 @@ st.title("📊 Dashboard PQRSDF – Análisis y Cumplimiento")
 # PARÁMETROS GOOGLE SHEETS
 # --------------------------------------------------
 SHEET_ID = "1FjApsoQIvz_nmaRCbO7NDD7N9M_noQaH"
-WORKSHEET = "Base PQRSDF"  # AJUSTA si el nombre es diferente
+WORKSHEET_NAME = "Base PQRSDF"  # nombre esperado de la pestaña
 
 # --------------------------------------------------
 # CARGA DE DATOS DESDE GOOGLE SHEETS
@@ -38,18 +38,38 @@ def load_data_from_gsheets(sheet_id, worksheet_name):
     )
 
     client = gspread.authorize(credentials)
-    sheet = client.open_by_key(sheet_id)
-    worksheet = sheet.worksheet(worksheet_name)
+
+    try:
+        sheet = client.open_by_key(sheet_id)
+    except Exception:
+        st.error("❌ No se pudo abrir el Google Sheet. Verifica el SHEET_ID y que esté compartido con la service account.")
+        st.stop()
+
+    # 🔹 Intentar por nombre, si falla usar la primera pestaña
+    try:
+        worksheet = sheet.worksheet(worksheet_name)
+    except Exception:
+        st.warning(
+            f"⚠️ No se encontró la pestaña '{worksheet_name}'. "
+            "Se usará automáticamente la primera hoja del archivo."
+        )
+        worksheet = sheet.get_worksheet(0)
 
     data = worksheet.get_all_records()
     df = pd.DataFrame(data)
 
+    if df.empty:
+        st.warning("⚠️ La hoja está vacía o no tiene encabezados.")
+        st.stop()
+
     # ------------------------
     # LIMPIEZA Y TRANSFORMACIÓN
     # ------------------------
-    df['fecha_radicacion'] = pd.to_datetime(df['fecha_radicacion'])
-    df['fecha_limite'] = pd.to_datetime(df['fecha_limite'])
+    df['fecha_radicacion'] = pd.to_datetime(df['fecha_radicacion'], errors='coerce')
+    df['fecha_limite'] = pd.to_datetime(df['fecha_limite'], errors='coerce')
     df['fecha_respuesta'] = pd.to_datetime(df['fecha_respuesta'], errors='coerce')
+
+    df = df.dropna(subset=['fecha_radicacion'])
 
     df['anio'] = df['fecha_radicacion'].dt.year
     df['mes'] = df['fecha_radicacion'].dt.month
@@ -57,7 +77,8 @@ def load_data_from_gsheets(sheet_id, worksheet_name):
     # Cumplimiento de tiempos
     df['cumple_tiempo'] = df.apply(
         lambda x: 'Cumple'
-        if pd.notnull(x['fecha_respuesta']) and x['fecha_respuesta'] <= x['fecha_limite']
+        if pd.notnull(x['fecha_respuesta']) and pd.notnull(x['fecha_limite'])
+        and x['fecha_respuesta'] <= x['fecha_limite']
         else 'No cumple',
         axis=1
     )
@@ -66,11 +87,11 @@ def load_data_from_gsheets(sheet_id, worksheet_name):
     hoy = pd.Timestamp(datetime.now().date())
 
     def estado_venc(row):
-        if row['estado'] == 'Cerrado':
+        if row.get('estado') == 'Cerrado':
             return 'Cerrado'
-        if hoy > row['fecha_limite']:
+        if pd.notnull(row['fecha_limite']) and hoy > row['fecha_limite']:
             return 'Vencida'
-        if (row['fecha_limite'] - hoy).days <= 3:
+        if pd.notnull(row['fecha_limite']) and (row['fecha_limite'] - hoy).days <= 3:
             return 'Por vencer'
         return 'En tiempo'
 
@@ -101,7 +122,7 @@ def calcular_kpis(df):
 # --------------------------------------------------
 # EJECUCIÓN PRINCIPAL
 # --------------------------------------------------
-df = load_data_from_gsheets(SHEET_ID, WORKSHEET)
+df = load_data_from_gsheets(SHEET_ID, WORKSHEET_NAME)
 
 # --------------------------------------------------
 # FILTROS
@@ -143,42 +164,26 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.plotly_chart(
-        px.bar(
-            df,
-            x="tipo_pqrsdf",
-            title="PQRSDF por Tipo",
-            text_auto=True
-        ),
+        px.bar(df, x="tipo_pqrsdf", title="PQRSDF por Tipo", text_auto=True),
         use_container_width=True
     )
 
 with col2:
     st.plotly_chart(
-        px.bar(
-            df,
-            y="area",
-            orientation="h",
-            title="PQRSDF por Área",
-            text_auto=True
-        ),
+        px.bar(df, y="area", orientation="h", title="PQRSDF por Área", text_auto=True),
         use_container_width=True
     )
 
 st.plotly_chart(
-    px.pie(
-        df,
-        names="estado_vencimiento",
-        title="Estado de Vencimiento"
-    ),
+    px.pie(df, names="estado_vencimiento", title="Estado de Vencimiento"),
     use_container_width=True
 )
 
 # --------------------------------------------------
-# TABLA DETALLADA (ANALISTA)
+# TABLA DETALLADA
 # --------------------------------------------------
 st.subheader("📋 Detalle de PQRSDF")
 st.dataframe(
     df.sort_values("fecha_radicacion", ascending=False),
     use_container_width=True
 )
-
