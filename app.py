@@ -153,20 +153,74 @@ elif dashboard == "Dashboard En Curso":
 # ==================================================
 elif dashboard == "Dashboard No Cumple":
 
-    st.markdown("## ❌ PQRSDF No Cumple")
+    st.markdown("## ❌ PQRSDF que NO Cumplieron los Tiempos (SLA)")
 
-    # Ajusta esta condición cuando trabajemos SLA
-    df_no_cumple = df_filtrado[df_filtrado['Estado'] == 'No Cumple']
+    # -----------------------------
+    # FILTRO REAL POR SLA
+    # -----------------------------
+    df_no_cumple = df_filtrado[
+        df_filtrado['SLA']
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .isin(['no cumple', 'nocumple', 'no'])
+    ]
 
+    if df_no_cumple.empty:
+        st.info("✅ No se encontraron PQRSDF que no cumplan SLA en el periodo seleccionado.")
+        st.stop()
+
+    # -----------------------------
+    # KPIs
+    # -----------------------------
     col1, col2 = st.columns(2)
+    col1.metric("❌ Casos No Cumple", len(df_no_cumple))
+    col2.metric("🏢 Áreas afectadas", df_no_cumple['Area principal'].nunique())
 
-    col1.metric("Casos No Cumple", len(df_no_cumple))
-    col2.metric("Áreas críticas", df_no_cumple['Area principal'].nunique())
-
-    fig = px.bar(
-        df_no_cumple,
-        x='Area principal',
-        title="PQRSDF No Cumple por Área"
+    # -----------------------------
+    # AGRUPACIÓN POR ÁREA
+    # -----------------------------
+    df_area_nc = (
+        df_no_cumple
+        .groupby('Area principal', as_index=False)
+        .size()
+        .rename(columns={'size': 'Cantidad No Cumple'})
+        .sort_values('Cantidad No Cumple', ascending=False)
     )
 
+    # -----------------------------
+    # GRÁFICA
+    # -----------------------------
+    fig = px.bar(
+        df_area_nc,
+        x='Area principal',
+        y='Cantidad No Cumple',
+        text='Cantidad No Cumple',
+        title="Áreas con PQRSDF que NO Cumplieron SLA",
+        color='Cantidad No Cumple',
+        color_continuous_scale='Reds'
+    )
+
+    fig.update_layout(xaxis_tickangle=-45)
+
     st.plotly_chart(fig, use_container_width=True)
+
+    # -----------------------------
+    # TABLA DE SOPORTE
+    # -----------------------------
+    st.subheader("📋 Detalle de PQRSDF No Cumple")
+
+    st.dataframe(
+        df_no_cumple[
+            [
+                'num caso',
+                'AÑO',
+                'Mes_nombre',
+                'Categoría',
+                'Area principal',
+                'Estado',
+                'SLA'
+            ]
+        ],
+        use_container_width=True
+    )
