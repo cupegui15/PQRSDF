@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📊 Dashboard PQRSDF – Vista General")
+st.title("📊 Dashboard PQRSDF")
 
 # --------------------------------------------------
 # URL CSV GOOGLE SHEETS
@@ -26,47 +26,34 @@ CSV_URL = (
 # --------------------------------------------------
 @st.cache_data(ttl=300)
 def load_data():
-    df = pd.read_csv(CSV_URL)
-    return df
+    return pd.read_csv(CSV_URL)
 
 df = load_data()
 
 # --------------------------------------------------
-# LIMPIEZA BÁSICA
+# LIMPIEZA Y NORMALIZACIÓN
 # --------------------------------------------------
 df['AÑO'] = pd.to_numeric(df['AÑO'], errors='coerce')
 df['Mes'] = pd.to_numeric(df['Mes'], errors='coerce')
-
 df = df.dropna(subset=['AÑO', 'Mes'])
 
 # --------------------------------------------------
-# CONVERSIÓN DE MES A NOMBRE
+# MES A TEXTO
 # --------------------------------------------------
 meses = {
-    1: "Enero",
-    2: "Febrero",
-    3: "Marzo",
-    4: "Abril",
-    5: "Mayo",
-    6: "Junio",
-    7: "Julio",
-    8: "Agosto",
-    9: "Septiembre",
-    10: "Octubre",
-    11: "Noviembre",
-    12: "Diciembre"
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+    5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+    9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
 }
-
 df['Mes_nombre'] = df['Mes'].map(meses)
-
-# Orden correcto de meses
 orden_meses = list(meses.values())
 
 # --------------------------------------------------
-# FILTROS (SOLO AÑO Y MES)
+# SIDEBAR – FILTROS
 # --------------------------------------------------
 with st.sidebar:
     st.header("🎛️ Filtros")
+
     anio = st.multiselect(
         "Año",
         sorted(df['AÑO'].unique())
@@ -77,51 +64,67 @@ with st.sidebar:
         orden_meses
     )
 
+    categoria = st.multiselect(
+        "Categoría",
+        sorted(df['Categoría'].dropna().unique())
+    )
+
 if anio:
     df = df[df['AÑO'].isin(anio)]
 
 if mes:
     df = df[df['Mes_nombre'].isin(mes)]
 
-# --------------------------------------------------
-# KPIs BÁSICOS
-# --------------------------------------------------
-st.subheader("Indicadores generales")
-
-c1, c2 = st.columns(2)
-c1.metric("📄 Total PQRSDF", len(df))
-c2.metric("📂 Total Categorías", df['Categoría'].nunique())
+if categoria:
+    df = df[df['Categoría'].isin(categoria)]
 
 # --------------------------------------------------
-# GRÁFICA: PQRSDF POR CATEGORÍA
+# DASHBOARD: COMPORTAMIENTO POR ÁREA
 # --------------------------------------------------
-st.subheader("PQRSDF por Categoría")
+st.markdown("## 📌 Comportamiento por Área")
 
+st.markdown(
+    """
+    Visualiza la **cantidad de PQRSDF por área** en el periodo seleccionado,
+    permitiendo identificar **concentración de solicitudes, quejas o peticiones**
+    por dependencia.
+    """
+)
+
+# Agrupación por área
+df_area = (
+    df
+    .groupby('Area principal', as_index=False)
+    .size()
+    .rename(columns={'size': 'Cantidad PQRSDF'})
+    .sort_values('Cantidad PQRSDF', ascending=False)
+)
+
+# --------------------------------------------------
+# GRÁFICO DE BARRAS – TOP POR ÁREA
+# --------------------------------------------------
 fig = px.bar(
-    df,
-    x='Categoría',
-    title="Cantidad de PQRSDF por Categoría",
-    labels={'Categoría': 'Categoría'},
+    df_area,
+    x='Area principal',
+    y='Cantidad PQRSDF',
+    title="Cantidad de PQRSDF por Área",
+    text='Cantidad PQRSDF'
+)
+
+fig.update_layout(
+    xaxis_title="Área",
+    yaxis_title="Cantidad de PQRSDF",
+    xaxis_tickangle=-45
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
 # --------------------------------------------------
-# TABLA DETALLADA
+# TABLA DE APOYO
 # --------------------------------------------------
-st.subheader("📋 Detalle de casos")
+st.subheader("📋 Detalle por Área")
 
 st.dataframe(
-    df[
-        [
-            'num caso',
-            'AÑO',
-            'Mes_nombre',
-            'Categoría',
-            'Area principal',
-            'Estado',
-            'Descripción de la solicitud'
-        ]
-    ],
+    df_area,
     use_container_width=True
 )
