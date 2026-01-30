@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
 
 # --------------------------------------------------
 # CONFIGURACIÓN GENERAL
@@ -11,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📊 Dashboard PQRSDF – Análisis y Cumplimiento")
+st.title("📊 Dashboard PQRSDF – Vista General")
 
 # --------------------------------------------------
 # URL CSV GOOGLE SHEETS
@@ -33,103 +32,71 @@ def load_data():
 df = load_data()
 
 # --------------------------------------------------
-# LIMPIEZA Y TRANSFORMACIÓN
+# LIMPIEZA BÁSICA
 # --------------------------------------------------
-df['fecha_radicacion'] = pd.to_datetime(df['fecha_radicacion'], errors='coerce')
-df['fecha_limite'] = pd.to_datetime(df['fecha_limite'], errors='coerce')
-df['fecha_respuesta'] = pd.to_datetime(df['fecha_respuesta'], errors='coerce')
+df['AÑO'] = pd.to_numeric(df['AÑO'], errors='coerce')
+df['Mes'] = df['Mes'].astype(str)
 
-df = df.dropna(subset=['fecha_radicacion'])
-
-df['anio'] = df['fecha_radicacion'].dt.year
-df['mes'] = df['fecha_radicacion'].dt.month
-
-df['cumple_tiempo'] = df.apply(
-    lambda x: 'Cumple'
-    if pd.notnull(x['fecha_respuesta'])
-    and pd.notnull(x['fecha_limite'])
-    and x['fecha_respuesta'] <= x['fecha_limite']
-    else 'No cumple',
-    axis=1
-)
-
-hoy = pd.Timestamp(datetime.now().date())
-
-def estado_venc(row):
-    if row.get('estado') == 'Cerrado':
-        return 'Cerrado'
-    if pd.notnull(row['fecha_limite']) and hoy > row['fecha_limite']:
-        return 'Vencida'
-    if pd.notnull(row['fecha_limite']) and (row['fecha_limite'] - hoy).days <= 3:
-        return 'Por vencer'
-    return 'En tiempo'
-
-df['estado_vencimiento'] = df.apply(estado_venc, axis=1)
+df = df.dropna(subset=['AÑO', 'Mes'])
 
 # --------------------------------------------------
-# FILTROS
+# FILTROS (SOLO AÑO Y MES)
 # --------------------------------------------------
 with st.sidebar:
     st.header("🎛️ Filtros")
-    anio = st.multiselect("Año", sorted(df['anio'].unique()))
-    mes = st.multiselect("Mes", sorted(df['mes'].unique()))
-    area = st.multiselect("Área", sorted(df['area'].dropna().unique()))
-    tipo = st.multiselect("Tipo PQRSDF", sorted(df['tipo_pqrsdf'].dropna().unique()))
+    anio = st.multiselect(
+        "Año",
+        sorted(df['AÑO'].dropna().unique())
+    )
+    mes = st.multiselect(
+        "Mes",
+        sorted(df['Mes'].dropna().unique())
+    )
 
 if anio:
-    df = df[df['anio'].isin(anio)]
+    df = df[df['AÑO'].isin(anio)]
 if mes:
-    df = df[df['mes'].isin(mes)]
-if area:
-    df = df[df['area'].isin(area)]
-if tipo:
-    df = df[df['tipo_pqrsdf'].isin(tipo)]
+    df = df[df['Mes'].isin(mes)]
 
 # --------------------------------------------------
-# KPIs
+# KPIs BÁSICOS
 # --------------------------------------------------
-total = len(df)
+st.subheader("Indicadores generales")
 
-c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
-c1.metric("📄 Total", total)
-c2.metric("📥 Peticiones", len(df[df['tipo_pqrsdf'] == 'Petición']))
-c3.metric("⚠️ Quejas", len(df[df['tipo_pqrsdf'] == 'Queja']))
-c4.metric("📢 Reclamos", len(df[df['tipo_pqrsdf'] == 'Reclamo']))
-c5.metric("❌ Vencidas", len(df[df['estado_vencimiento'] == 'Vencida']))
-c6.metric("⏳ Por vencer", len(df[df['estado_vencimiento'] == 'Por vencer']))
-c7.metric(
-    "✅ % Cumplimiento",
-    f"{round(len(df[df['cumple_tiempo'] == 'Cumple']) / total * 100, 1)}%"
-    if total > 0 else "0%"
+c1, c2 = st.columns(2)
+c1.metric("📄 Total PQRSDF", len(df))
+c2.metric("📂 Total Categorías", df['Categoría'].nunique())
+
+# --------------------------------------------------
+# GRÁFICA SIMPLE
+# --------------------------------------------------
+st.subheader("PQRSDF por Categoría")
+
+fig = px.bar(
+    df,
+    x='Categoría',
+    title="Cantidad de PQRSDF por Categoría",
+    labels={'Categoría': 'Categoría', 'count': 'Cantidad'},
 )
 
-# --------------------------------------------------
-# GRÁFICAS
-# --------------------------------------------------
-col1, col2 = st.columns(2)
-
-with col1:
-    st.plotly_chart(
-        px.bar(df, x="tipo_pqrsdf", title="PQRSDF por Tipo", text_auto=True),
-        use_container_width=True
-    )
-
-with col2:
-    st.plotly_chart(
-        px.bar(df, y="area", orientation="h", title="PQRSDF por Área", text_auto=True),
-        use_container_width=True
-    )
-
-st.plotly_chart(
-    px.pie(df, names="estado_vencimiento", title="Estado de Vencimiento"),
-    use_container_width=True
-)
+st.plotly_chart(fig, use_container_width=True)
 
 # --------------------------------------------------
 # TABLA DETALLADA
 # --------------------------------------------------
-st.subheader("📋 Detalle de PQRSDF")
+st.subheader("📋 Detalle de casos")
+
 st.dataframe(
-    df.sort_values("fecha_radicacion", ascending=False),
+    df[
+        [
+            'num caso',
+            'AÑO',
+            'Mes',
+            'Categoría',
+            'Area principal',
+            'Estado',
+            'Descripción de la solicitud'
+        ]
+    ],
     use_container_width=True
 )
