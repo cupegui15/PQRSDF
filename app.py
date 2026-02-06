@@ -93,9 +93,7 @@ st.markdown(f"""
 # FUENTE DE DATOS (GOOGLE SHEETS COMO CSV)
 # ==================================================
 CSV_URL = (
-    "https://docs.google.com/spreadsheets/d/"
-    "1FjApsoQIvz_nmaRCbO7NDD7N9M_noQaH/"
-    "export?format=csv&gid=925681863"
+    "https://docs.google.com/spreadsheets/d/1FjApsoQIvz_nmaRCbO7NDD7N9M_noQaH/edit?usp=sharing&ouid=109519553631389678023&rtpof=true&sd=true"
 )
 
 @st.cache_data(ttl=300)
