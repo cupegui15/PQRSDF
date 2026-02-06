@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 
 # ==================================================
 # CONFIGURACIÓN GENERAL
@@ -18,7 +21,7 @@ URL_LOGO_UR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQY0ZMIXOVuz
 URL_BANNER_IMG = "https://uredu-my.sharepoint.com/personal/cristian_upegui_urosario_edu_co/Documents/Imagenes/Imagen%201.jpg"
 
 # ==================================================
-# CSS INSTITUCIONAL (HOMOLOGADO AL FORMULARIO)
+# CSS INSTITUCIONAL
 # ==================================================
 st.markdown("""
 <style>
@@ -38,13 +41,6 @@ html, body, .stApp {
 [data-testid="stSidebar"] * {
     color: #fff !important;
     font-weight: 600 !important;
-}
-[data-testid="stSidebar"] select,
-[data-testid="stSidebar"] option,
-[data-testid="stSidebar"] div[data-baseweb="select"] * {
-    color: #000 !important;
-    background-color: #fff !important;
-    font-weight: 500 !important;
 }
 .banner {
     background-color: var(--rojo-ur);
@@ -90,15 +86,77 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==================================================
-# FUENTE DE DATOS (GOOGLE SHEETS COMO CSV)
+# CONEXIÓN A GOOGLE SHEETS
 # ==================================================
-CSV_URL = (
-    "https://docs.google.com/spreadsheets/d/1FjApsoQIvz_nmaRCbO7NDD7N9M_noQaH/edit?usp=sharing&ouid=109519553631389678023&rtpof=true&sd=true"
-)
+@st.cache_resource
+def connect_gsheets():
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds = st.secrets["gcp_service_account"]
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(creds, scope)
+    return gspread.authorize(credentials)
 
+client = connect_gsheets()
+
+sheet = client.open_by_key(
+    "1xb56o2ao5o35QJFczVc8JpGCrPb1vEKz3fDqt4wK4ws"
+).worksheet("PQRSDF")
+
+# ==================================================
+# FORMULARIO PQRSDF
+# ==================================================
+st.markdown('<div class="section-title">📋 Registro de PQRSDF</div>', unsafe_allow_html=True)
+
+with st.form("form_pqrsdf"):
+    categoria = st.selectbox(
+        "Categoría",
+        ["Petición", "Queja", "Reclamo", "Sugerencia", "Felicitación"]
+    )
+    area_principal = st.text_input("Área principal")
+    dependencia = st.text_input("Dependencia")
+    descripcion = st.text_area("Descripción de la solicitud")
+    estado = st.selectbox("Estado", ["Abierto", "Cerrado"])
+    derecho_peticion = st.selectbox("Derecho de petición", ["Sí", "No"])
+
+    submit = st.form_submit_button("Guardar PQRSDF")
+
+if submit:
+    nueva_fila = [
+        "",  # num caso
+        datetime.now().strftime("%Y-%m-%d"),
+        "",  # fecha cierre
+        datetime.now().year,
+        "",  # general
+        area_principal,
+        dependencia,
+        descripcion,
+        categoria,
+        "",  # respuesta
+        estado,
+        1,
+        "",  # días
+        "No Aplica",
+        derecho_peticion,
+        datetime.now().month,
+        "I",
+        "", "", "", "", ""
+    ]
+
+    sheet.append_row(nueva_fila, value_input_option="USER_ENTERED")
+    st.success("✅ PQRSDF registrada correctamente")
+    st.cache_data.clear()
+
+st.markdown("---")
+
+# ==================================================
+# CARGA DE DATOS (LECTURA)
+# ==================================================
 @st.cache_data(ttl=300)
 def load_data():
-    return pd.read_csv(CSV_URL)
+    data = sheet.get_all_records()
+    return pd.DataFrame(data)
 
 df = load_data()
 
@@ -119,7 +177,7 @@ df['Mes_nombre'] = df['Mes'].map(meses)
 df['Semestre'] = df['Mes'].apply(lambda x: "Semestre 1" if x <= 6 else "Semestre 2")
 
 # ==================================================
-# SIDEBAR – NAVEGACIÓN + FILTROS
+# SIDEBAR
 # ==================================================
 st.sidebar.image(URL_LOGO_UR, width=140)
 
@@ -127,11 +185,7 @@ st.sidebar.markdown("### 🧭 Navegación")
 
 dashboard = st.sidebar.radio(
     "",
-    [
-        "📊 Comportamiento por Área",
-        "⏳ En Curso",
-        "❌ No Cumple (SLA)"
-    ]
+    ["📊 Comportamiento por Área", "⏳ En Curso", "❌ No Cumple (SLA)"]
 )
 
 st.sidebar.markdown("---")
@@ -140,13 +194,13 @@ st.sidebar.markdown("### 🎛️ Filtros")
 anio = st.sidebar.multiselect("Año", sorted(df['AÑO'].unique()))
 semestre = st.sidebar.multiselect("Semestre", ["Semestre 1", "Semestre 2"])
 mes = st.sidebar.multiselect("Mes", list(meses.values()))
-categoria = st.sidebar.multiselect(
+categoria_f = st.sidebar.multiselect(
     "Categoría",
     sorted(df['Categoría'].dropna().unique())
 )
 
 # ==================================================
-# APLICACIÓN DE FILTROS
+# FILTROS
 # ==================================================
 df_f = df.copy()
 
@@ -156,24 +210,18 @@ if semestre:
     df_f = df_f[df_f['Semestre'].isin(semestre)]
 if mes:
     df_f = df_f[df_f['Mes_nombre'].isin(mes)]
-if categoria:
-    df_f = df_f[df_f['Categoría'].isin(categoria)]
+if categoria_f:
+    df_f = df_f[df_f['Categoría'].isin(categoria_f)]
 
 # ==================================================
-# KPI: NO CUMPLE SLA (GLOBAL)
+# KPI SLA
 # ==================================================
 df_no_cumple = df_f[
-    df_f['SLA']
-    .astype(str)
-    .str.strip()
-    .str.lower()
-    .isin(['no cumple', 'nocumple', 'no'])
+    df_f['SLA'].astype(str).str.lower().str.contains("no")
 ]
 
-cantidad_no_cumple = len(df_no_cumple)
-
 # ==================================================
-# KPIs SUPERIORES (CARDS)
+# KPIs
 # ==================================================
 st.markdown('<div class="section-title">Indicadores generales</div>', unsafe_allow_html=True)
 
@@ -188,68 +236,28 @@ with c3:
 with c4:
     st.markdown(f"<div class='card'><h4>🗓️ Periodos</h4><h2>{df_f[['AÑO','Mes_nombre']].drop_duplicates().shape[0]}</h2></div>", unsafe_allow_html=True)
 with c5:
-    st.markdown(
-        f"<div class='card'><h4>❌ No Cumple SLA</h4><h2>{cantidad_no_cumple}</h2></div>",
-        unsafe_allow_html=True
-    )
+    st.markdown(f"<div class='card'><h4>❌ No Cumple SLA</h4><h2>{len(df_no_cumple)}</h2></div>", unsafe_allow_html=True)
 
 st.markdown("---")
 
 # ==================================================
-# DASHBOARD: COMPORTAMIENTO POR ÁREA
+# DASHBOARDS
 # ==================================================
 if dashboard == "📊 Comportamiento por Área":
 
-    st.markdown('<div class="section-title">Comportamiento por Área</div>', unsafe_allow_html=True)
+    df_area = df_f.groupby("Area principal").size().reset_index(name="Cantidad")
 
-    df_area = (
-        df_f.groupby("Area principal")
-        .size()
-        .reset_index(name="Cantidad PQRSDF")
-        .sort_values("Cantidad PQRSDF", ascending=False)
-    )
-
-    fig = px.bar(
-        df_area,
-        x="Area principal",
-        y="Cantidad PQRSDF",
-        text="Cantidad PQRSDF",
-        color="Cantidad PQRSDF",
-        color_continuous_scale="Blues"
-    )
+    fig = px.bar(df_area, x="Area principal", y="Cantidad", text="Cantidad")
     fig.update_layout(xaxis_tickangle=-40)
-
     st.plotly_chart(fig, use_container_width=True)
     st.dataframe(df_area, use_container_width=True)
 
-# ==================================================
-# DASHBOARD: EN CURSO
-# ==================================================
 elif dashboard == "⏳ En Curso":
 
-    st.markdown('<div class="section-title">PQRSDF en Curso</div>', unsafe_allow_html=True)
-
     df_curso = df_f[df_f['Estado'].str.lower() != 'cerrado']
+    df_area = df_curso.groupby("Area principal").size().reset_index(name="En curso")
 
-    df_area = (
-        df_curso.groupby("Area principal")
-        .size()
-        .reset_index(name="Casos en curso")
-        .sort_values("Casos en curso", ascending=False)
-    )
-
-    fig = px.bar(
-        df_area,
-        x="Area principal",
-        y="Casos en curso",
-        text="Casos en curso",
-        color="Casos en curso",
-        color_continuous_scale="Oranges"
-    )
+    fig = px.bar(df_area, x="Area principal", y="En curso", text="En curso")
     fig.update_layout(xaxis_tickangle=-40)
-
     st.plotly_chart(fig, use_container_width=True)
     st.dataframe(df_area, use_container_width=True)
-
-# ==================================================
-# DASHBOARD: NO CUM
