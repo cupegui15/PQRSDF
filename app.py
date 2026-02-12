@@ -43,8 +43,7 @@ html, body, .stApp { background-color:var(--gris)!important; font-family:"Segoe 
 st.markdown(f"""
 <div class="banner">
     <div>
-        <h2>Tablero de Control PQRSDF</h2>
-        <p>Seguimiento institucional y cumplimiento SLA</p>
+        <h2>Tablero de Control PQRSDF</h2>       
     </div>
     <div><img src="{URL_LOGO_UR}" width="100"></div>
 </div>
