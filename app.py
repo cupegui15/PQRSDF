@@ -5,6 +5,7 @@ import numpy as np
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
+import json
 
 # ===============================
 # CONFIGURACIÓN PRINCIPAL
@@ -90,10 +91,7 @@ def conectar():
         "https://www.googleapis.com/auth/drive"
     ]
 
-    creds_dict = dict(st.secrets["gcp_service_account"])
-
-    # 🔥 CORRECCIÓN CLAVE PRIVADA
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    creds_dict = json.loads(st.secrets["GCP_SERVICE_ACCOUNT"])
 
     creds = Credentials.from_service_account_info(
         creds_dict,
@@ -101,6 +99,7 @@ def conectar():
     )
 
     return gspread.authorize(creds)
+
 
 client = conectar()
 sh = client.open_by_key(st.secrets["GOOGLE_SHEETS_ID"])
