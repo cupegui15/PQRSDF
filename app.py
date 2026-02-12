@@ -91,13 +91,8 @@ def conectar():
         "https://www.googleapis.com/auth/drive"
     ]
 
-    creds_dict = dict(st.secrets["gcp_service_account"])
-
-    # 🔥 Arregla saltos de línea automáticamente
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-
-    creds = Credentials.from_service_account_info(
-        creds_dict,
+    creds = Credentials.from_service_account_file(
+        "pqrsdf-485914-1eefe7b5cc14.json",
         scopes=scope
     )
 
