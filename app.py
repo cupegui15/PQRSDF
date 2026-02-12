@@ -264,17 +264,66 @@ elif pagina == "🎯 Indicador por Área":
 
 elif pagina == "📥 Exportación mensual":
 
-    if df_filtrado.empty:
-        st.warning("No hay datos con los filtros aplicados.")
+    st.markdown("### 📥 Descarga por Área y Año")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        area_exp = st.selectbox(
+            "Área",
+            sorted(df['Area principal'].dropna().unique())
+        )
+
+    with col2:
+        anio_exp = st.selectbox(
+            "Año",
+            sorted(df['AÑO'].dropna().unique())
+        )
+
+    with col3:
+        mes_exp = st.selectbox(
+            "Mes (opcional)",
+            ["Todos"] + sorted(df['Mes'].dropna().unique())
+        )
+
+    # 🔥 FILTRO BASE: Área + Año
+    df_export = df[
+        (df['Area principal'] == area_exp) &
+        (df['AÑO'] == anio_exp)
+    ]
+
+    nombre_mes = ""
+
+    # 🔥 SI SE SELECCIONA MES
+    if mes_exp != "Todos":
+        df_export = df_export[df_export['Mes'] == mes_exp]
+        nombre_mes = f"_{mes_exp}"
+
+    if df_export.empty:
+        st.warning("No hay registros para el periodo seleccionado.")
     else:
+
+        # Limpiar nombre área
+        area_nombre = (
+            area_exp.replace(" ", "")
+            .replace("/", "")
+            .replace("-", "")
+        )
+
+        nombre_archivo = f"PQRSDF_{area_nombre}_{anio_exp}{nombre_mes}.xlsx"
+
         buffer = BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df_filtrado.to_excel(writer, index=False, sheet_name="PQRSDF")
+
+        with pd.ExcelWriter(buffer) as writer:
+            df_export.to_excel(writer, index=False, sheet_name="PQRSDF")
+
         buffer.seek(0)
 
         st.download_button(
-            "📥 Descargar Excel filtrado",
+            "📥 Descargar archivo",
             buffer,
-            file_name="PQRSDF_filtrado.xlsx",
+            file_name=nombre_archivo,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+        st.success(f"Se descargarán {len(df_export)} registros.")
