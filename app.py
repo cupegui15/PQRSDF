@@ -29,16 +29,6 @@ html, body, .stApp { background-color:var(--gris)!important; font-family:"Segoe 
 [data-testid="stSidebar"] * { color:#fff!important; font-weight:600!important; }
 .banner { background-color:var(--rojo); color:white; padding:1.2rem; border-radius:8px; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;}
 .section-title { color:var(--rojo); font-weight:700; font-size:1.2rem; margin-bottom:.8rem;}
-.card { background:white; padding:1.2rem; border-radius:10px; border:1px solid #e6e6e6;}
-</style>
-""", unsafe_allow_html=True)
-
-# Reducir tamaño visual de filtros
-st.markdown("""
-<style>
-[data-testid="stSidebar"] .stMultiSelect div {
-    font-size: 13px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,7 +46,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==================================================
-# CONEXIÓN GOOGLE SHEETS
+# CONEXIÓN
 # ==================================================
 @st.cache_resource
 def conectar():
@@ -140,41 +130,48 @@ pagina = st.sidebar.radio(
     ]
 )
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🎛 Filtros")
-
-col1, col2 = st.sidebar.columns(2)
-with col1:
-    anio_f = st.multiselect("Año", sorted(df['AÑO'].dropna().unique()))
-with col2:
-    semestre_f = st.multiselect("Semestre", sorted(df['Semestre'].dropna().unique()))
-
-col3, col4 = st.sidebar.columns(2)
-with col3:
-    mes_f = st.multiselect("Mes", sorted(df['Mes'].dropna().unique()))
-with col4:
-    sla_f = st.multiselect("SLA", sorted(df['SLA'].dropna().unique()))
-
-area_f = st.sidebar.multiselect("Área", sorted(df['Area principal'].dropna().unique()))
-categoria_f = st.sidebar.multiselect("Categoría", sorted(df['Categoría'].dropna().unique()))
-
 # ==================================================
-# APLICAR FILTROS
+# FILTROS CONDICIONALES
 # ==================================================
-df_filtrado = df.copy()
+if pagina != "📥 Exportación mensual":
 
-if anio_f:
-    df_filtrado = df_filtrado[df_filtrado['AÑO'].isin(anio_f)]
-if semestre_f:
-    df_filtrado = df_filtrado[df_filtrado['Semestre'].isin(semestre_f)]
-if mes_f:
-    df_filtrado = df_filtrado[df_filtrado['Mes'].isin(mes_f)]
-if area_f:
-    df_filtrado = df_filtrado[df_filtrado['Area principal'].isin(area_f)]
-if categoria_f:
-    df_filtrado = df_filtrado[df_filtrado['Categoría'].isin(categoria_f)]
-if sla_f:
-    df_filtrado = df_filtrado[df_filtrado['SLA'].isin(sla_f)]
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🎛 Filtros")
+
+    col1, col2 = st.sidebar.columns(2)
+
+    with col1:
+        anio_f = st.multiselect("Año", sorted(df['AÑO'].dropna().unique()))
+    with col2:
+        semestre_f = st.multiselect("Semestre", sorted(df['Semestre'].dropna().unique()))
+
+    col3, col4 = st.sidebar.columns(2)
+
+    with col3:
+        mes_f = st.multiselect("Mes", sorted(df['Mes'].dropna().unique()))
+    with col4:
+        sla_f = st.multiselect("SLA", sorted(df['SLA'].dropna().unique()))
+
+    area_f = st.sidebar.multiselect("Área", sorted(df['Area principal'].dropna().unique()))
+    categoria_f = st.sidebar.multiselect("Categoría", sorted(df['Categoría'].dropna().unique()))
+
+    df_filtrado = df.copy()
+
+    if anio_f:
+        df_filtrado = df_filtrado[df_filtrado['AÑO'].isin(anio_f)]
+    if semestre_f:
+        df_filtrado = df_filtrado[df_filtrado['Semestre'].isin(semestre_f)]
+    if mes_f:
+        df_filtrado = df_filtrado[df_filtrado['Mes'].isin(mes_f)]
+    if area_f:
+        df_filtrado = df_filtrado[df_filtrado['Area principal'].isin(area_f)]
+    if categoria_f:
+        df_filtrado = df_filtrado[df_filtrado['Categoría'].isin(categoria_f)]
+    if sla_f:
+        df_filtrado = df_filtrado[df_filtrado['SLA'].isin(sla_f)]
+
+else:
+    df_filtrado = df.copy()
 
 # ==================================================
 # DASHBOARDS
@@ -192,76 +189,6 @@ if pagina == "📊 Tablero General":
     c3.metric("Vencidas", len(vencidas))
     c4.metric("Cerradas", len(cerradas))
 
-    df_area = df_filtrado.groupby("Area principal").size().reset_index(name="Cantidad")
-    fig = px.bar(df_area, x="Area principal", y="Cantidad", text="Cantidad", color="Cantidad")
-    st.plotly_chart(fig, use_container_width=True)
-
-elif pagina == "📈 Tiempo promedio por área":
-
-    df_cerradas = df_filtrado[df_filtrado['Estado'] == 'cerrado']
-
-    promedio = (
-        df_cerradas.groupby("Area principal")["Dias_calculados"]
-        .mean().reset_index()
-    )
-
-    promedio["Dias_calculados"] = promedio["Dias_calculados"].round(2)
-
-    fig = px.bar(promedio, x="Area principal", y="Dias_calculados",
-                 text="Dias_calculados", color="Dias_calculados")
-    st.plotly_chart(fig, use_container_width=True)
-
-elif pagina == "🏆 Ranking de cumplimiento":
-
-    ranking = (
-        df_filtrado.assign(Cumple=lambda x: x['SLA'].str.contains("si"))
-        .groupby("Area principal")["Cumple"]
-        .mean().reset_index()
-    )
-
-    ranking["Cumplimiento (%)"] = (ranking["Cumple"]*100).round(2)
-
-    fig = px.bar(ranking, x="Area principal", y="Cumplimiento (%)",
-                 text="Cumplimiento (%)", color="Cumplimiento (%)",
-                 color_continuous_scale="RdYlGn")
-    st.plotly_chart(fig, use_container_width=True)
-
-elif pagina == "📊 Comparativos":
-
-    comparativo = (
-        df_filtrado.groupby(["AÑO","Mes","Area principal"])
-        .size().reset_index(name="Cantidad")
-    )
-
-    fig = px.line(comparativo, x="Mes", y="Cantidad",
-                  color="Area principal", markers=True)
-    st.plotly_chart(fig, use_container_width=True)
-
-elif pagina == "🎯 Indicador por Área":
-
-    categorias_validas = ["Petición", "Queja", "Reclamo"]
-
-    df_ind = df_filtrado[
-        (df_filtrado["Categoría"].isin(categorias_validas)) |
-        (df_filtrado["Derecho de petición"].astype(str).str.lower() == "sí")
-    ]
-
-    df_ind["Cumple"] = df_ind["SLA"].str.contains("si")
-
-    indicador = (
-        df_ind.groupby("Area principal")
-        .agg(Total=("Cumple","count"),
-             Cumplen=("Cumple","sum"))
-        .reset_index()
-    )
-
-    indicador["Indicador (%)"] = (indicador["Cumplen"]/indicador["Total"]*100).round(2)
-
-    fig = px.bar(indicador, x="Area principal", y="Indicador (%)",
-                 text="Indicador (%)", color="Indicador (%)",
-                 color_continuous_scale="RdYlGn")
-    st.plotly_chart(fig, use_container_width=True)
-
 elif pagina == "📥 Exportación mensual":
 
     st.markdown("### 📥 Descarga por Área y Año")
@@ -269,24 +196,12 @@ elif pagina == "📥 Exportación mensual":
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        area_exp = st.selectbox(
-            "Área",
-            sorted(df['Area principal'].dropna().unique())
-        )
-
+        area_exp = st.selectbox("Área", sorted(df['Area principal'].dropna().unique()))
     with col2:
-        anio_exp = st.selectbox(
-            "Año",
-            sorted(df['AÑO'].dropna().unique())
-        )
-
+        anio_exp = st.selectbox("Año", sorted(df['AÑO'].dropna().unique()))
     with col3:
-        mes_exp = st.selectbox(
-            "Mes (opcional)",
-            ["Todos"] + sorted(df['Mes'].dropna().unique())
-        )
+        mes_exp = st.selectbox("Mes (opcional)", ["Todos"] + sorted(df['Mes'].dropna().unique()))
 
-    # 🔥 FILTRO BASE: Área + Año
     df_export = df[
         (df['Area principal'] == area_exp) &
         (df['AÑO'] == anio_exp)
@@ -294,7 +209,6 @@ elif pagina == "📥 Exportación mensual":
 
     nombre_mes = ""
 
-    # 🔥 SI SE SELECCIONA MES
     if mes_exp != "Todos":
         df_export = df_export[df_export['Mes'] == mes_exp]
         nombre_mes = f"_{mes_exp}"
@@ -302,18 +216,10 @@ elif pagina == "📥 Exportación mensual":
     if df_export.empty:
         st.warning("No hay registros para el periodo seleccionado.")
     else:
-
-        # Limpiar nombre área
-        area_nombre = (
-            area_exp.replace(" ", "")
-            .replace("/", "")
-            .replace("-", "")
-        )
-
+        area_nombre = area_exp.replace(" ", "").replace("/", "").replace("-", "")
         nombre_archivo = f"PQRSDF_{area_nombre}_{anio_exp}{nombre_mes}.xlsx"
 
         buffer = BytesIO()
-
         with pd.ExcelWriter(buffer) as writer:
             df_export.to_excel(writer, index=False, sheet_name="PQRSDF")
 
@@ -325,5 +231,3 @@ elif pagina == "📥 Exportación mensual":
             file_name=nombre_archivo,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
-        st.success(f"Se descargarán {len(df_export)} registros.")
