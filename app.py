@@ -19,7 +19,6 @@ st.set_page_config(
 # IMÁGENES INSTITUCIONALES
 # ===============================
 URL_LOGO_UR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQY0ZMIXOVuzLond_jNv713shc6TmUWej0JDQ&s"
-URL_BANNER_IMG = URL_LOGO_UR
 
 # ===============================
 # CSS INSTITUCIONAL
@@ -76,7 +75,7 @@ st.markdown(f"""
         <h2>Tablero de Control PQRSDF</h2>
         <p>Seguimiento institucional y cumplimiento SLA</p>
     </div>
-    <div><img src="{URL_BANNER_IMG}" width="110"></div>
+    <div><img src="{URL_LOGO_UR}" width="110"></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -89,10 +88,12 @@ def conectar():
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
+
     creds = Credentials.from_service_account_info(
         st.secrets["gcp_service_account"],
         scopes=scope
     )
+
     return gspread.authorize(creds)
 
 client = conectar()
@@ -113,19 +114,33 @@ def cargar_datos():
 df, festivos_df = cargar_datos()
 
 # ===============================
-# PROCESAR FESTIVOS (día/mes/año)
+# PROCESAR FESTIVOS (VERSIÓN ROBUSTA)
 # ===============================
 festivos_df.columns = festivos_df.columns.str.strip().str.lower()
 
-if {'dia','mes','año'}.issubset(festivos_df.columns):
-    festivos_df['fecha'] = pd.to_datetime(
-        festivos_df[['año','mes','dia']],
-        errors='coerce'
+if {'dia', 'mes', 'año'}.issubset(festivos_df.columns):
+
+    festivos_df['dia'] = pd.to_numeric(festivos_df['dia'], errors='coerce')
+    festivos_df['mes'] = pd.to_numeric(festivos_df['mes'], errors='coerce')
+    festivos_df['año'] = pd.to_numeric(festivos_df['año'], errors='coerce')
+
+    festivos_df = festivos_df.dropna(subset=['dia', 'mes', 'año'])
+    festivos_df[['dia','mes','año']] = festivos_df[['dia','mes','año']].astype(int)
+
+    festivos_df['fecha'] = festivos_df.apply(
+        lambda x: datetime(x['año'], x['mes'], x['dia']),
+        axis=1
     )
-    festivos = festivos_df['fecha'].dt.date.dropna().tolist()
+
+    festivos = festivos_df['fecha'].dt.date.tolist()
+
 else:
     festivos = []
+    st.warning("⚠ La hoja Festivos debe tener columnas: Día, Mes y Año")
 
+# ===============================
+# FUNCIÓN DÍAS HÁBILES
+# ===============================
 def dias_habiles(inicio, fin):
     if pd.isna(inicio):
         return 0
