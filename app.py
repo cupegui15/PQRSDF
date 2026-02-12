@@ -84,13 +84,19 @@ st.markdown(f"""
 # ===============================
 @st.cache_resource
 def conectar():
+
     scope = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
 
+    creds_dict = dict(st.secrets["gcp_service_account"])
+
+    # 🔥 CORRECCIÓN CLAVE PRIVADA
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
     creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
+        creds_dict,
         scopes=scope
     )
 
