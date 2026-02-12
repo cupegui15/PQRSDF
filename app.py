@@ -33,6 +33,18 @@ html, body, .stApp { background-color:var(--gris)!important; font-family:"Segoe 
 </style>
 """, unsafe_allow_html=True)
 
+# Reducir tamaño visual de filtros
+st.markdown("""
+<style>
+[data-testid="stSidebar"] .stMultiSelect div {
+    font-size: 13px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ==================================================
+# BANNER
+# ==================================================
 st.markdown(f"""
 <div class="banner">
     <div>
@@ -75,7 +87,7 @@ def cargar():
 df, festivos_df = cargar()
 
 # ==================================================
-# FESTIVOS BLINDADO
+# FESTIVOS
 # ==================================================
 festivos = []
 
@@ -133,21 +145,21 @@ st.sidebar.markdown("### 🎛 Filtros")
 
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    anio_f = st.multiselect("Año", sorted(df['AÑO'].dropna().unique()), label_visibility="collapsed")
+    anio_f = st.multiselect("Año", sorted(df['AÑO'].dropna().unique()))
 with col2:
-    semestre_f = st.multiselect("Semestre", sorted(df['Semestre'].dropna().unique()), label_visibility="collapsed")
+    semestre_f = st.multiselect("Semestre", sorted(df['Semestre'].dropna().unique()))
 
 col3, col4 = st.sidebar.columns(2)
 with col3:
-    mes_f = st.multiselect("Mes", sorted(df['Mes'].dropna().unique()), label_visibility="collapsed")
+    mes_f = st.multiselect("Mes", sorted(df['Mes'].dropna().unique()))
 with col4:
-    sla_f = st.multiselect("SLA", sorted(df['SLA'].dropna().unique()), label_visibility="collapsed")
+    sla_f = st.multiselect("SLA", sorted(df['SLA'].dropna().unique()))
 
 area_f = st.sidebar.multiselect("Área", sorted(df['Area principal'].dropna().unique()))
 categoria_f = st.sidebar.multiselect("Categoría", sorted(df['Categoría'].dropna().unique()))
 
 # ==================================================
-# FILTROS
+# APLICAR FILTROS
 # ==================================================
 df_filtrado = df.copy()
 
