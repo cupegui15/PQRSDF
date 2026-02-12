@@ -19,6 +19,16 @@ st.set_page_config(
 URL_LOGO_UR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQY0ZMIXOVuzLond_jNv713shc6TmUWej0JDQ&s"
 
 # ==================================================
+# DICCIONARIO MESES
+# ==================================================
+meses_nombre = {
+    1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",
+    5:"Mayo",6:"Junio",7:"Julio",8:"Agosto",
+    9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"
+}
+meses_invertido = {v:k for k,v in meses_nombre.items()}
+
+# ==================================================
 # ESTILO
 # ==================================================
 st.markdown("""
@@ -31,9 +41,6 @@ html, body, .stApp { background-color:var(--gris)!important; font-family:"Segoe 
 </style>
 """, unsafe_allow_html=True)
 
-# ==================================================
-# BANNER
-# ==================================================
 st.markdown(f"""
 <div class="banner">
     <div>
@@ -63,9 +70,6 @@ client = conectar()
 sh = client.open_by_key(st.secrets["GOOGLE_SHEETS_ID"])
 sheet = sh.worksheet("PQRSDF")
 
-# ==================================================
-# CARGA DATOS
-# ==================================================
 @st.cache_data(ttl=300)
 def cargar():
     return pd.DataFrame(sheet.get_all_records())
@@ -75,6 +79,7 @@ df = cargar()
 # ==================================================
 # LIMPIEZA
 # ==================================================
+df.columns = df.columns.str.strip()
 df['AÑO'] = pd.to_numeric(df['AÑO'], errors='coerce')
 df['Mes'] = pd.to_numeric(df['Mes'], errors='coerce')
 df['Categoría'] = df['Categoría'].astype(str).str.lower().str.strip()
@@ -91,37 +96,124 @@ st.sidebar.markdown("### 🧭 Navegación")
 pagina = st.sidebar.radio(
     "",
     [
-        "🎯 Indicador por Área",
         "📌 Seguimiento",
+        "🎯 Indicador por Área",
+        "🔎 Búsqueda de Caso",
         "📥 Exportación mensual"
     ]
 )
 
 # ==================================================
+# 📌 SEGUIMIENTO
+# ==================================================
+if pagina == "📌 Seguimiento":
+
+    st.markdown("## 📌 Seguimiento de Casos")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        area_seg = st.selectbox("Área", ["Todas"] + sorted(df['Area principal'].dropna().unique()))
+    with col2:
+        anio_seg = st.selectbox("Año", sorted(df['AÑO'].dropna().unique()))
+
+    meses_disponibles = sorted(df['Mes'].dropna().unique())
+    meses_visual = [meses_nombre[m] for m in meses_disponibles if m in meses_nombre]
+
+    mes_seg = st.multiselect("Mes", meses_visual)
+
+    sla_seg = st.selectbox("SLA", ["Todos"] + sorted(df['SLA'].dropna().unique()))
+
+    df_seg = df[df['AÑO'] == anio_seg]
+
+    if area_seg != "Todas":
+        df_seg = df_seg[df_seg['Area principal'] == area_seg]
+
+    if mes_seg:
+        meses_numericos = [meses_invertido[m] for m in mes_seg]
+        df_seg = df_seg[df_seg['Mes'].isin(meses_numericos)]
+
+    if sla_seg != "Todos":
+        df_seg = df_seg[df_seg['SLA'] == sla_seg]
+
+    if df_seg.empty:
+        st.warning("No hay registros con los filtros seleccionados.")
+        st.stop()
+
+    hoy = datetime.now().date()
+
+    # 🔥 Próximos a vencer (3 días o menos)
+    df_seg['Dias_restantes'] = (df_seg['Fecha cierre'].dt.date - hoy).dt.days
+
+    proximos = df_seg[
+        (df_seg['Estado'] != "cerrado") &
+        (df_seg['Dias_restantes'] <= 3) &
+        (df_seg['Dias_restantes'] >= 0)
+    ]
+
+    total = len(df_seg)
+    en_proceso = len(df_seg[df_seg['Estado'] != "cerrado"])
+    cerrados = len(df_seg[df_seg['Estado'] == "cerrado"])
+    no_cumplen = len(df_seg[df_seg['SLA'].str.contains("no")])
+    proximos_vencer = len(proximos)
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+
+    c1.metric("Total Casos", total)
+    c2.metric("En Proceso", en_proceso)
+    c3.metric("Cerrados", cerrados)
+    c4.metric("No Cumplen", no_cumplen)
+    c5.metric("Próximos a Vencer", proximos_vencer)
+
+    st.divider()
+
+    if not proximos.empty:
+        st.markdown("### ⚠️ Casos Próximos a Vencer")
+        st.dataframe(
+            proximos[
+                ['num caso','Area principal','Categoría','Fecha cierre','Dias_restantes','SLA','Estado']
+            ].sort_values('Dias_restantes'),
+            use_container_width=True
+        )
+
+# ==================================================
+# 🔎 BÚSQUEDA DE CASO
+# ==================================================
+elif pagina == "🔎 Búsqueda de Caso":
+
+    st.markdown("## 🔎 Búsqueda de Caso")
+
+    numero = st.text_input("Ingrese número de caso")
+
+    if numero:
+
+        resultado = df[df['num caso'].astype(str) == numero.strip()]
+
+        if resultado.empty:
+            st.warning("No se encontró ningún caso con ese número.")
+        else:
+            st.success("Caso encontrado")
+            st.dataframe(resultado, use_container_width=True)
+
+# ==================================================
 # 🎯 INDICADOR POR ÁREA
 # ==================================================
-if pagina == "🎯 Indicador por Área":
+elif pagina == "🎯 Indicador por Área":
 
     st.markdown("## 🎯 Indicador de Cumplimiento por Área")
 
-    col1, col2, col3 = st.columns(3)
+    anio_ind = st.selectbox("Año", sorted(df['AÑO'].dropna().unique()))
 
-    with col1:
-        anio_ind = st.selectbox("Año", sorted(df['AÑO'].dropna().unique()))
+    meses_disponibles = sorted(df['Mes'].dropna().unique())
+    meses_visual = [meses_nombre[m] for m in meses_disponibles if m in meses_nombre]
 
-    with col2:
-        mes_ind = st.selectbox("Mes", ["Todos"] + sorted(df['Mes'].dropna().unique()))
-
-    with col3:
-        area_ind = st.selectbox("Área", ["Todas"] + sorted(df['Area principal'].dropna().unique()))
+    mes_ind = st.multiselect("Mes", meses_visual)
 
     df_ind = df[df['AÑO'] == anio_ind]
 
-    if mes_ind != "Todos":
-        df_ind = df_ind[df_ind['Mes'] == mes_ind]
-
-    if area_ind != "Todas":
-        df_ind = df_ind[df_ind['Area principal'] == area_ind]
+    if mes_ind:
+        meses_numericos = [meses_invertido[m] for m in mes_ind]
+        df_ind = df_ind[df_ind['Mes'].isin(meses_numericos)]
 
     categorias_validas = [
         "petición",
@@ -152,140 +244,4 @@ if pagina == "🎯 Indicador por Área":
     )
 
     st.dataframe(resumen, use_container_width=True)
-
-    fig = px.bar(
-        resumen,
-        x='Area principal',
-        y='Indicador (%)',
-        text='Indicador (%)',
-        color='Indicador (%)',
-        color_continuous_scale='RdYlGn',
-        range_y=[0,100]
-    )
-
-    fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
-    st.plotly_chart(fig, use_container_width=True)
-
-# ==================================================
-# 📌 SEGUIMIENTO
-# ==================================================
-elif pagina == "📌 Seguimiento":
-
-    st.markdown("## 📌 Seguimiento de Casos")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        area_seg = st.selectbox("Área", ["Todas"] + sorted(df['Area principal'].dropna().unique()))
-
-    with col2:
-        anio_seg = st.selectbox("Año", sorted(df['AÑO'].dropna().unique()))
-
-    col3, col4 = st.columns(2)
-
-    with col3:
-        mes_seg = st.multiselect("Mes", sorted(df['Mes'].dropna().unique()))
-
-    with col4:
-        sla_seg = st.selectbox("SLA", ["Todos"] + sorted(df['SLA'].dropna().unique()))
-
-    df_seg = df[df['AÑO'] == anio_seg]
-
-    if area_seg != "Todas":
-        df_seg = df_seg[df_seg['Area principal'] == area_seg]
-
-    if mes_seg:
-        df_seg = df_seg[df_seg['Mes'].isin(mes_seg)]
-
-    if sla_seg != "Todos":
-        df_seg = df_seg[df_seg['SLA'] == sla_seg]
-
-    if df_seg.empty:
-        st.warning("No hay registros con los filtros seleccionados.")
-        st.stop()
-
-    hoy = datetime.now()
-
-    proximos = df_seg[
-        (df_seg['Estado'] != "cerrado") &
-        (df_seg['Fecha cierre'].notna()) &
-        ((df_seg['Fecha cierre'] - hoy).dt.days <= 3) &
-        ((df_seg['Fecha cierre'] - hoy).dt.days >= 0)
-    ]
-
-    total = len(df_seg)
-    en_proceso = len(df_seg[df_seg['Estado'] != "cerrado"])
-    cerrados = len(df_seg[df_seg['Estado'] == "cerrado"])
-    no_cumplen = len(df_seg[df_seg['SLA'].str.contains("no")])
-    proximos_vencer = len(proximos)
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-
-    c1.metric("Total Casos", total)
-    c2.metric("En Proceso", en_proceso)
-    c3.metric("Cerrados", cerrados)
-    c4.metric("No Cumplen", no_cumplen)
-    c5.metric("Próximos a Vencer", proximos_vencer)
-
-    estado_resumen = df_seg.groupby('Estado').size().reset_index(name='Cantidad')
-    st.plotly_chart(px.pie(estado_resumen, names='Estado', values='Cantidad'), use_container_width=True)
-
-    area_resumen = df_seg.groupby('Area principal').size().reset_index(name='Cantidad')
-    st.plotly_chart(px.bar(area_resumen, x='Area principal', y='Cantidad', text='Cantidad'), use_container_width=True)
-
-    tendencia = df_seg.groupby('Mes').size().reset_index(name='Cantidad').sort_values('Mes')
-    st.plotly_chart(px.line(tendencia, x='Mes', y='Cantidad', markers=True), use_container_width=True)
-
-# ==================================================
-# 📥 EXPORTACIÓN
-# ==================================================
-elif pagina == "📥 Exportación mensual":
-
-    st.markdown("## 📥 Descarga por Área y Año")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        area_exp = st.selectbox("Área", sorted(df['Area principal'].dropna().unique()))
-
-    with col2:
-        anio_exp = st.selectbox("Año", sorted(df['AÑO'].dropna().unique()))
-
-    with col3:
-        mes_exp = st.selectbox("Mes", ["Todos"] + sorted(df['Mes'].dropna().unique()))
-
-    df_export = df[
-        (df['Area principal'] == area_exp) &
-        (df['AÑO'] == anio_exp)
-    ]
-
-    meses_nombre = {
-        1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",
-        5:"Mayo",6:"Junio",7:"Julio",8:"Agosto",
-        9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"
-    }
-
-    nombre_mes = ""
-
-    if mes_exp != "Todos":
-        df_export = df_export[df_export['Mes'] == mes_exp]
-        nombre_mes = f"_{meses_nombre.get(mes_exp, mes_exp)}"
-
-    if df_export.empty:
-        st.warning("No hay registros para el periodo seleccionado.")
-    else:
-        area_nombre = area_exp.replace(" ", "").replace("/", "").replace("-", "")
-        nombre_archivo = f"PQRSDF_{area_nombre}_{anio_exp}{nombre_mes}.xlsx"
-
-        buffer = BytesIO()
-        with pd.ExcelWriter(buffer) as writer:
-            df_export.to_excel(writer, index=False, sheet_name="PQRSDF")
-
-        buffer.seek(0)
-
-        st.download_button(
-            "📥 Descargar archivo",
-            buffer,
-            file_name=nombre_archivo,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+    st.plotly_chart(px.bar(resumen, x='Area principal', y='Indicador (%)', text='Indicador (%)'), use_container_width=True)
