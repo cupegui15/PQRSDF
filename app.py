@@ -80,7 +80,7 @@ df['Mes'] = pd.to_numeric(df['Mes'], errors='coerce')
 df['Categoría'] = df['Categoría'].astype(str).str.lower().str.strip()
 df['SLA'] = df['SLA'].astype(str).str.lower().str.strip()
 df['Estado'] = df['Estado'].astype(str).str.lower().str.strip()
-df['Fecha final'] = pd.to_datetime(df['Fecha final'], errors='coerce')
+df['Fecha cierre'] = pd.to_datetime(df['Fecha cierre'], errors='coerce')
 
 # ==================================================
 # SIDEBAR
@@ -208,9 +208,9 @@ elif pagina == "📌 Seguimiento":
 
     proximos = df_seg[
         (df_seg['Estado'] != "cerrado") &
-        (df_seg['Fecha final'].notna()) &
-        ((df_seg['Fecha final'] - hoy).dt.days <= 3) &
-        ((df_seg['Fecha final'] - hoy).dt.days >= 0)
+        (df_seg['Fecha cierre'].notna()) &
+        ((df_seg['Fecha cierre'] - hoy).dt.days <= 3) &
+        ((df_seg['Fecha cierre'] - hoy).dt.days >= 0)
     ]
 
     total = len(df_seg)
