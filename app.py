@@ -90,12 +90,11 @@ df['Fecha cierre'] = pd.to_datetime(df['Fecha cierre'], errors='coerce')
 # SIDEBAR
 # ==================================================
 st.sidebar.image(URL_LOGO_UR, width=120)
-st.sidebar.markdown("### 🧭 Navegación")
 
 pagina = st.sidebar.radio(
     "",
     [
-        "📌 Seguimiento",
+        "📌 Seguimiento Diario",
         "🎯 Indicador por Área",
         "🔎 Búsqueda de Caso",
         "📥 Exportación mensual"
@@ -103,9 +102,9 @@ pagina = st.sidebar.radio(
 )
 
 # ==================================================
-# 📌 SEGUIMIENTO
+# 📌 SEGUIMIENTO DIARIO
 # ==================================================
-if pagina == "📌 Seguimiento":
+if pagina == "📌 Seguimiento Diario":
 
     st.markdown("## 📌 Seguimiento de Casos")
 
