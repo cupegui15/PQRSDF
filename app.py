@@ -5,7 +5,6 @@ import numpy as np
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import json
 
 # ===============================
 # CONFIGURACIÓN PRINCIPAL
@@ -17,7 +16,7 @@ st.set_page_config(
 )
 
 # ===============================
-# IMÁGENES INSTITUCIONALES
+# IMAGEN INSTITUCIONAL
 # ===============================
 URL_LOGO_UR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQY0ZMIXOVuzLond_jNv713shc6TmUWej0JDQ&s"
 
@@ -81,7 +80,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ===============================
-# CONEXIÓN GOOGLE SHEETS
+# CONEXIÓN GOOGLE SHEETS (JSON FILE)
 # ===============================
 @st.cache_resource
 def conectar():
@@ -116,29 +115,40 @@ def cargar_datos():
 df, festivos_df = cargar_datos()
 
 # ===============================
-# PROCESAR FESTIVOS (VERSIÓN ROBUSTA)
+# PROCESAR FESTIVOS (BLINDADO)
 # ===============================
-festivos_df.columns = festivos_df.columns.str.strip().str.lower()
+festivos = []
 
-if {'dia', 'mes', 'año'}.issubset(festivos_df.columns):
+if not festivos_df.empty:
 
-    festivos_df['dia'] = pd.to_numeric(festivos_df['dia'], errors='coerce')
-    festivos_df['mes'] = pd.to_numeric(festivos_df['mes'], errors='coerce')
-    festivos_df['año'] = pd.to_numeric(festivos_df['año'], errors='coerce')
+    festivos_df.columns = festivos_df.columns.str.strip().str.lower()
 
-    festivos_df = festivos_df.dropna(subset=['dia', 'mes', 'año'])
-    festivos_df[['dia','mes','año']] = festivos_df[['dia','mes','año']].astype(int)
+    columnas_requeridas = {'dia', 'mes', 'año'}
 
-    festivos_df['fecha'] = festivos_df.apply(
-        lambda x: datetime(x['año'], x['mes'], x['dia']),
-        axis=1
-    )
+    if columnas_requeridas.issubset(festivos_df.columns):
 
-    festivos = festivos_df['fecha'].dt.date.tolist()
+        festivos_df['dia'] = pd.to_numeric(festivos_df['dia'], errors='coerce')
+        festivos_df['mes'] = pd.to_numeric(festivos_df['mes'], errors='coerce')
+        festivos_df['año'] = pd.to_numeric(festivos_df['año'], errors='coerce')
 
-else:
-    festivos = []
-    st.warning("⚠ La hoja Festivos debe tener columnas: Día, Mes y Año")
+        festivos_df = festivos_df.dropna(subset=['dia', 'mes', 'año'])
+
+        if not festivos_df.empty:
+
+            festivos_df[['dia','mes','año']] = festivos_df[['dia','mes','año']].astype(int)
+
+            try:
+                fechas = [
+                    datetime(a, m, d).date()
+                    for a, m, d in zip(
+                        festivos_df['año'],
+                        festivos_df['mes'],
+                        festivos_df['dia']
+                    )
+                ]
+                festivos = fechas
+            except:
+                festivos = []
 
 # ===============================
 # FUNCIÓN DÍAS HÁBILES
