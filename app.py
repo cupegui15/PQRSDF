@@ -91,7 +91,10 @@ def conectar():
         "https://www.googleapis.com/auth/drive"
     ]
 
-    creds_dict = json.loads(st.secrets["GCP_SERVICE_ACCOUNT"])
+    creds_dict = dict(st.secrets["gcp_service_account"])
+
+    # 🔥 Arregla saltos de línea automáticamente
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
     creds = Credentials.from_service_account_info(
         creds_dict,
@@ -99,7 +102,6 @@ def conectar():
     )
 
     return gspread.authorize(creds)
-
 
 client = conectar()
 sh = client.open_by_key(st.secrets["GOOGLE_SHEETS_ID"])
