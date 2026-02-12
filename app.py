@@ -196,12 +196,24 @@ elif pagina == "📥 Exportación mensual":
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        area_exp = st.selectbox("Área", sorted(df['Area principal'].dropna().unique()))
-    with col2:
-        anio_exp = st.selectbox("Año", sorted(df['AÑO'].dropna().unique()))
-    with col3:
-        mes_exp = st.selectbox("Mes (opcional)", ["Todos"] + sorted(df['Mes'].dropna().unique()))
+        area_exp = st.selectbox(
+            "Área",
+            sorted(df['Area principal'].dropna().unique())
+        )
 
+    with col2:
+        anio_exp = st.selectbox(
+            "Año",
+            sorted(df['AÑO'].dropna().unique())
+        )
+
+    with col3:
+        mes_exp = st.selectbox(
+            "Mes (opcional)",
+            ["Todos"] + sorted(df['Mes'].dropna().unique())
+        )
+
+    # 🔥 Filtro base: Área + Año
     df_export = df[
         (df['Area principal'] == area_exp) &
         (df['AÑO'] == anio_exp)
@@ -209,17 +221,34 @@ elif pagina == "📥 Exportación mensual":
 
     nombre_mes = ""
 
+    # Diccionario de meses
+    meses_nombre = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+    }
+
+    # 🔥 Si selecciona mes específico
     if mes_exp != "Todos":
         df_export = df_export[df_export['Mes'] == mes_exp]
-        nombre_mes = f"_{mes_exp}"
+        nombre_mes = f"_{meses_nombre.get(mes_exp, mes_exp)}"
 
     if df_export.empty:
         st.warning("No hay registros para el periodo seleccionado.")
     else:
-        area_nombre = area_exp.replace(" ", "").replace("/", "").replace("-", "")
+
+        # Limpiar nombre del área
+        area_nombre = (
+            area_exp.replace(" ", "")
+            .replace("/", "")
+            .replace("-", "")
+        )
+
+        # 🔥 Construir nombre final
         nombre_archivo = f"PQRSDF_{area_nombre}_{anio_exp}{nombre_mes}.xlsx"
 
         buffer = BytesIO()
+
         with pd.ExcelWriter(buffer) as writer:
             df_export.to_excel(writer, index=False, sheet_name="PQRSDF")
 
@@ -231,3 +260,5 @@ elif pagina == "📥 Exportación mensual":
             file_name=nombre_archivo,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+        st.success(f"Se descargarán {len(df_export)} registros.")
