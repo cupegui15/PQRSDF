@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import numpy as np
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
@@ -9,84 +10,13 @@ from datetime import datetime
 # CONFIGURACIÓN GENERAL
 # ==================================================
 st.set_page_config(
-    page_title="PQRSDF | Tablero de Control",
+    page_title="PQRSDF | Tablero Central",
     layout="wide",
     page_icon="📊"
 )
 
 # ==================================================
-# IMÁGENES INSTITUCIONALES
-# ==================================================
-URL_LOGO_UR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQY0ZMIXOVuzLond_jNv713shc6TmUWej0JDQ&s"
-URL_BANNER_IMG = "https://uredu-my.sharepoint.com/personal/cristian_upegui_urosario_edu_co/Documents/Imagenes/Imagen%201.jpg"
-
-# ==================================================
-# CSS INSTITUCIONAL
-# ==================================================
-st.markdown("""
-<style>
-:root {
-    --rojo-ur: #9B0029;
-    --gris-fondo: #f8f8f8;
-    --texto: #222;
-}
-html, body, .stApp {
-    background-color: var(--gris-fondo) !important;
-    color: var(--texto) !important;
-    font-family: "Segoe UI", sans-serif;
-}
-[data-testid="stSidebar"] {
-    background-color: var(--rojo-ur) !important;
-}
-[data-testid="stSidebar"] * {
-    color: #fff !important;
-    font-weight: 600 !important;
-}
-.banner {
-    background-color: var(--rojo-ur);
-    color: white;
-    padding: 1.3rem 2rem;
-    border-radius: 8px;
-    margin-bottom: 1.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.section-title {
-    color: var(--rojo-ur);
-    font-weight: 700;
-    font-size: 1.2rem;
-    margin-bottom: .8rem;
-}
-.card {
-    background-color: #ffffff;
-    padding: 1.1rem 1.3rem;
-    border-radius: 10px;
-    border: 1px solid #e6e6e6;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-.card h4 {
-    color: #9B0029;
-    margin-bottom: .3rem;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ==================================================
-# BANNER
-# ==================================================
-st.markdown(f"""
-<div class="banner">
-    <div>
-        <h2>Tablero de Control PQRSDF</h2>
-        <p>Análisis y seguimiento institucional</p>
-    </div>
-    <div><img src="{URL_BANNER_IMG}" width="130" style="border-radius:6px;"></div>
-</div>
-""", unsafe_allow_html=True)
-
-# ==================================================
-# CONEXIÓN A GOOGLE SHEETS
+# CONEXIÓN GOOGLE SHEETS
 # ==================================================
 @st.cache_resource
 def connect_gsheets():
@@ -96,6 +26,7 @@ def connect_gsheets():
     ]
 
     creds = st.secrets["gcp_service_account"]
+
     credentials = Credentials.from_service_account_info(
         creds, scopes=scope
     )
@@ -104,164 +35,200 @@ def connect_gsheets():
 
 client = connect_gsheets()
 
-sheet = client.open_by_key(
-    "1xb56o2ao5o35QJFczVc8JpGCrPb1vEKz3fDqt4wK4ws"
-).worksheet("PQRSDF")
+SPREADSHEET_ID = "1xb56o2ao5o35QJFczVc8JpGCrPb1vEKz3fDqt4wK4ws"
+
+sheet_pqrsdf = client.open_by_key(SPREADSHEET_ID).worksheet("PQRSDF")
+sheet_festivos = client.open_by_key(SPREADSHEET_ID).worksheet("Festivos")
+sheet_responsables = client.open_by_key(SPREADSHEET_ID).worksheet("Responsables")
 
 # ==================================================
-# FORMULARIO PQRSDF
+# CARGA DE DATOS
 # ==================================================
-st.markdown('<div class="section-title">📋 Registro de PQRSDF</div>', unsafe_allow_html=True)
+@st.cache_data(ttl=300)
+def load_data():
+    df = pd.DataFrame(sheet_pqrsdf.get_all_records())
+    festivos = pd.DataFrame(sheet_festivos.get_all_records())
+    responsables = pd.DataFrame(sheet_responsables.get_all_records())
+    return df, festivos, responsables
+
+df, festivos_df, responsables_df = load_data()
+
+# ==================================================
+# LIMPIEZA Y PREPARACIÓN
+# ==================================================
+df['Fecha radicación'] = pd.to_datetime(df['Fecha radicación'], errors='coerce')
+df['Fecha cierre'] = pd.to_datetime(df['Fecha cierre'], errors='coerce')
+df['AÑO'] = pd.to_numeric(df['AÑO'], errors='coerce')
+df['Mes'] = pd.to_numeric(df['Mes'], errors='coerce')
+
+festivos_df['Fecha'] = pd.to_datetime(festivos_df['Fecha'], errors='coerce')
+festivos = festivos_df['Fecha'].dt.date.dropna().tolist()
+
+# ==================================================
+# FUNCIÓN DÍAS HÁBILES
+# ==================================================
+def dias_habiles(inicio, fin):
+    if pd.isna(inicio):
+        return 0
+
+    if pd.isna(fin):
+        fin = datetime.now()
+
+    return np.busday_count(
+        inicio.date(),
+        fin.date(),
+        holidays=festivos
+    )
+
+df['Dias_calculados'] = df.apply(
+    lambda x: dias_habiles(x['Fecha radicación'], x['Fecha cierre']),
+    axis=1
+)
+
+# ==================================================
+# CONTROL POR USUARIO (SAML)
+# ==================================================
+try:
+    user_email = st.experimental_user.email
+except:
+    user_email = None
+
+if user_email and not responsables_df.empty:
+
+    responsable = responsables_df[
+        responsables_df['correo'] == user_email
+    ]
+
+    if not responsable.empty:
+        rol = responsable['rol'].values[0]
+        area_usuario = responsable['area'].values[0]
+
+        if rol.lower() != "admin":
+            df = df[df['Area principal'] == area_usuario]
+    else:
+        st.warning("⚠ No tienes área asignada")
+
+# ==================================================
+# FORMULARIO REGISTRO
+# ==================================================
+st.markdown("## 📋 Registrar nueva PQRSDF")
 
 with st.form("form_pqrsdf"):
+
     categoria = st.selectbox(
         "Categoría",
         ["Petición", "Queja", "Reclamo", "Sugerencia", "Felicitación"]
     )
+
     area_principal = st.text_input("Área principal")
     dependencia = st.text_input("Dependencia")
-    descripcion = st.text_area("Descripción de la solicitud")
-    estado = st.selectbox("Estado", ["Abierto", "Cerrado"])
+    descripcion = st.text_area("Descripción")
     derecho_peticion = st.selectbox("Derecho de petición", ["Sí", "No"])
 
-    submit = st.form_submit_button("Guardar PQRSDF")
+    submit = st.form_submit_button("Guardar")
 
 if submit:
+
+    fecha_rad = datetime.now()
+
     nueva_fila = [
         "",  # num caso
-        datetime.now().strftime("%Y-%m-%d"),
+        fecha_rad.strftime("%Y-%m-%d"),
         "",  # fecha cierre
-        datetime.now().year,
+        fecha_rad.year,
         "",  # general
         area_principal,
         dependencia,
         descripcion,
         categoria,
         "",  # respuesta
-        estado,
+        "Abierto",
         1,
-        "",  # días
+        "",  # dias
         "No Aplica",
-        derecho_peticion,
-        datetime.now().month,
-        "I",
+        fecha_rad.month,
+        "I" if fecha_rad.month <= 6 else "II",
+        "",  # SLA
         "", "", "", "", ""
     ]
 
-    sheet.append_row(nueva_fila, value_input_option="USER_ENTERED")
+    sheet_pqrsdf.append_row(nueva_fila, value_input_option="USER_ENTERED")
+
     st.success("✅ PQRSDF registrada correctamente")
     st.cache_data.clear()
 
-st.markdown("---")
-
-# ==================================================
-# CARGA DE DATOS (LECTURA)
-# ==================================================
-@st.cache_data(ttl=300)
-def load_data():
-    data = sheet.get_all_records()
-    return pd.DataFrame(data)
-
-df = load_data()
-
-# ==================================================
-# PREPARACIÓN DE DATOS
-# ==================================================
-df['AÑO'] = pd.to_numeric(df['AÑO'], errors='coerce')
-df['Mes'] = pd.to_numeric(df['Mes'], errors='coerce')
-df = df.dropna(subset=['AÑO', 'Mes'])
-
-meses = {
-    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
-    5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
-    9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
-}
-
-df['Mes_nombre'] = df['Mes'].map(meses)
-df['Semestre'] = df['Mes'].apply(lambda x: "Semestre 1" if x <= 6 else "Semestre 2")
-
-# ==================================================
-# SIDEBAR
-# ==================================================
-st.sidebar.image(URL_LOGO_UR, width=140)
-
-st.sidebar.markdown("### 🧭 Navegación")
-
-dashboard = st.sidebar.radio(
-    "",
-    ["📊 Comportamiento por Área", "⏳ En Curso", "❌ No Cumple (SLA)"]
-)
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🎛️ Filtros")
-
-anio = st.sidebar.multiselect("Año", sorted(df['AÑO'].unique()))
-semestre = st.sidebar.multiselect("Semestre", ["Semestre 1", "Semestre 2"])
-mes = st.sidebar.multiselect("Mes", list(meses.values()))
-categoria_f = st.sidebar.multiselect(
-    "Categoría",
-    sorted(df['Categoría'].dropna().unique())
-)
+st.divider()
 
 # ==================================================
 # FILTROS
 # ==================================================
+st.sidebar.title("🎛 Filtros")
+
+anio = st.sidebar.multiselect("Año", sorted(df['AÑO'].dropna().unique()))
+mes = st.sidebar.multiselect("Mes", sorted(df['Mes'].dropna().unique()))
+semestre = st.sidebar.multiselect("Semestre", df['semestre'].dropna().unique())
+area_f = st.sidebar.multiselect("Área", df['Area principal'].dropna().unique())
+categoria_f = st.sidebar.multiselect("Categoría", df['Categoría'].dropna().unique())
+
 df_f = df.copy()
 
 if anio:
     df_f = df_f[df_f['AÑO'].isin(anio)]
-if semestre:
-    df_f = df_f[df_f['Semestre'].isin(semestre)]
+
 if mes:
-    df_f = df_f[df_f['Mes_nombre'].isin(mes)]
+    df_f = df_f[df_f['Mes'].isin(mes)]
+
+if semestre:
+    df_f = df_f[df_f['semestre'].isin(semestre)]
+
+if area_f:
+    df_f = df_f[df_f['Area principal'].isin(area_f)]
+
 if categoria_f:
     df_f = df_f[df_f['Categoría'].isin(categoria_f)]
 
 # ==================================================
-# KPI SLA
+# CLASIFICACIÓN ESTADOS
 # ==================================================
-df_no_cumple = df_f[
-    df_f['SLA'].astype(str).str.lower().str.contains("no")
+df_f['Estado'] = df_f['Estado'].astype(str).str.lower()
+df_f['SLA'] = df_f['SLA'].astype(str).str.lower()
+
+df_proceso = df_f[df_f['Estado'] != 'cerrado']
+df_cerradas = df_f[df_f['Estado'] == 'cerrado']
+df_vencidas = df_f[
+    (df_f['SLA'].str.contains("no")) &
+    (df_f['Estado'] != 'cerrado')
 ]
 
 # ==================================================
 # KPIs
 # ==================================================
-st.markdown('<div class="section-title">Indicadores generales</div>', unsafe_allow_html=True)
+st.markdown("## 📊 Indicadores Generales")
 
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3, c4 = st.columns(4)
 
-with c1:
-    st.markdown(f"<div class='card'><h4>📄 Total PQRSDF</h4><h2>{len(df_f)}</h2></div>", unsafe_allow_html=True)
-with c2:
-    st.markdown(f"<div class='card'><h4>🏢 Áreas</h4><h2>{df_f['Area principal'].nunique()}</h2></div>", unsafe_allow_html=True)
-with c3:
-    st.markdown(f"<div class='card'><h4>🗂️ Categorías</h4><h2>{df_f['Categoría'].nunique()}</h2></div>", unsafe_allow_html=True)
-with c4:
-    st.markdown(f"<div class='card'><h4>🗓️ Periodos</h4><h2>{df_f[['AÑO','Mes_nombre']].drop_duplicates().shape[0]}</h2></div>", unsafe_allow_html=True)
-with c5:
-    st.markdown(f"<div class='card'><h4>❌ No Cumple SLA</h4><h2>{len(df_no_cumple)}</h2></div>", unsafe_allow_html=True)
+c1.metric("📄 Total", len(df_f))
+c2.metric("⏳ En proceso", len(df_proceso))
+c3.metric("❌ Vencidas", len(df_vencidas))
+c4.metric("✅ Cerradas", len(df_cerradas))
 
-st.markdown("---")
+st.divider()
 
 # ==================================================
-# DASHBOARDS
+# DASHBOARD POR ÁREA
 # ==================================================
-if dashboard == "📊 Comportamiento por Área":
+st.markdown("## 📊 Comportamiento por Área")
 
-    df_area = df_f.groupby("Area principal").size().reset_index(name="Cantidad")
+df_area = df_f.groupby("Area principal").size().reset_index(name="Cantidad")
 
-    fig = px.bar(df_area, x="Area principal", y="Cantidad", text="Cantidad")
-    fig.update_layout(xaxis_tickangle=-40)
-    st.plotly_chart(fig, use_container_width=True)
-    st.dataframe(df_area, use_container_width=True)
+fig = px.bar(
+    df_area,
+    x="Area principal",
+    y="Cantidad",
+    text="Cantidad"
+)
 
-elif dashboard == "⏳ En Curso":
+fig.update_layout(xaxis_tickangle=-40)
 
-    df_curso = df_f[df_f['Estado'].str.lower() != 'cerrado']
-    df_area = df_curso.groupby("Area principal").size().reset_index(name="En curso")
-
-    fig = px.bar(df_area, x="Area principal", y="En curso", text="En curso")
-    fig.update_layout(xaxis_tickangle=-40)
-    st.plotly_chart(fig, use_container_width=True)
-    st.dataframe(df_area, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
+st.dataframe(df_area, use_container_width=True)
