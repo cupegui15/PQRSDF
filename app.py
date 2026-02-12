@@ -3,9 +3,8 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 from datetime import datetime
-import json
 
 # ===============================
 # CONFIGURACIÓN PRINCIPAL
@@ -20,21 +19,19 @@ st.set_page_config(
 # IMÁGENES INSTITUCIONALES
 # ===============================
 URL_LOGO_UR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQY0ZMIXOVuzLond_jNv713shc6TmUWej0JDQ&s"
-URL_BANNER_IMG = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQY0ZMIXOVuzLond_jNv713shc6TmUWej0JDQ&s"
+URL_BANNER_IMG = URL_LOGO_UR
 
 # ===============================
-# CSS INSTITUCIONAL (MISMO DISEÑO)
+# CSS INSTITUCIONAL
 # ===============================
 st.markdown("""
 <style>
 :root {
     --rojo-ur: #9B0029;
     --gris-fondo: #f8f8f8;
-    --texto: #222;
 }
 html, body, .stApp {
     background-color: var(--gris-fondo) !important;
-    color: var(--texto) !important;
     font-family: "Segoe UI", sans-serif;
 }
 [data-testid="stSidebar"] {
@@ -51,17 +48,18 @@ html, body, .stApp {
     border-radius: 8px;
     margin-bottom: 1.2rem;
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
 }
 .section-title {
     color: var(--rojo-ur);
     font-weight: 700;
     font-size: 1.2rem;
+    margin-bottom: 0.8rem;
 }
 .card {
-    background-color: #ffffff;
-    padding: 1.2rem 1.4rem;
+    background-color: white;
+    padding: 1.2rem;
     border-radius: 10px;
     border: 1px solid #e6e6e6;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
@@ -78,7 +76,7 @@ st.markdown(f"""
         <h2>Tablero de Control PQRSDF</h2>
         <p>Seguimiento institucional y cumplimiento SLA</p>
     </div>
-    <div><img src="{URL_BANNER_IMG}" width="120"></div>
+    <div><img src="{URL_BANNER_IMG}" width="110"></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -87,15 +85,14 @@ st.markdown(f"""
 # ===============================
 @st.cache_resource
 def conectar():
-    creds_json = st.secrets["GCP_SERVICE_ACCOUNT"]
-    creds_dict = json.loads(creds_json)
-
     scope = [
-        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=scope
+    )
     return gspread.authorize(creds)
 
 client = conectar()
@@ -103,7 +100,6 @@ sh = client.open_by_key(st.secrets["GOOGLE_SHEETS_ID"])
 
 sheet_pqrs = sh.worksheet("PQRSDF")
 sheet_festivos = sh.worksheet("Festivos")
-sheet_resp = sh.worksheet("Responsables")
 
 # ===============================
 # CARGA DE DATOS
@@ -112,10 +108,9 @@ sheet_resp = sh.worksheet("Responsables")
 def cargar_datos():
     df = pd.DataFrame(sheet_pqrs.get_all_records())
     festivos = pd.DataFrame(sheet_festivos.get_all_records())
-    resp = pd.DataFrame(sheet_resp.get_all_records())
-    return df, festivos, resp
+    return df, festivos
 
-df, festivos_df, resp_df = cargar_datos()
+df, festivos_df = cargar_datos()
 
 # ===============================
 # PROCESAR FESTIVOS (día/mes/año)
@@ -157,30 +152,9 @@ df['AÑO'] = pd.to_numeric(df['AÑO'], errors='coerce')
 df['Mes'] = pd.to_numeric(df['Mes'], errors='coerce')
 
 # ===============================
-# CONTROL POR USUARIO
+# SIDEBAR FILTROS
 # ===============================
-try:
-    user_email = st.experimental_user.email
-except:
-    user_email = None
-
-resp_df.columns = resp_df.columns.str.strip().str.lower()
-
-if user_email and not resp_df.empty:
-    usuario = resp_df[resp_df['correo'] == user_email]
-
-    if not usuario.empty:
-        rol = usuario['rol'].values[0]
-        area_usuario = usuario['area'].values[0]
-
-        if rol.lower() != "admin":
-            df = df[df['Area principal'] == area_usuario]
-
-# ===============================
-# SIDEBAR
-# ===============================
-st.sidebar.image(URL_LOGO_UR, width=150)
-
+st.sidebar.image(URL_LOGO_UR, width=140)
 st.sidebar.markdown("### 🎛 Filtros")
 
 anio_f = st.sidebar.multiselect("Año", sorted(df['AÑO'].dropna().unique()))
@@ -219,17 +193,10 @@ st.markdown('<div class="section-title">📊 Indicadores Generales</div>', unsaf
 
 c1, c2, c3, c4 = st.columns(4)
 
-with c1:
-    st.markdown(f"<div class='card'><b>Total PQRSDF</b><h2>{len(df_f)}</h2></div>", unsafe_allow_html=True)
-
-with c2:
-    st.markdown(f"<div class='card'><b>En proceso</b><h2>{len(en_proceso)}</h2></div>", unsafe_allow_html=True)
-
-with c3:
-    st.markdown(f"<div class='card'><b>Vencidas</b><h2>{len(vencidas)}</h2></div>", unsafe_allow_html=True)
-
-with c4:
-    st.markdown(f"<div class='card'><b>Cerradas</b><h2>{len(cerradas)}</h2></div>", unsafe_allow_html=True)
+c1.markdown(f"<div class='card'><b>Total PQRSDF</b><h2>{len(df_f)}</h2></div>", unsafe_allow_html=True)
+c2.markdown(f"<div class='card'><b>En proceso</b><h2>{len(en_proceso)}</h2></div>", unsafe_allow_html=True)
+c3.markdown(f"<div class='card'><b>Vencidas</b><h2>{len(vencidas)}</h2></div>", unsafe_allow_html=True)
+c4.markdown(f"<div class='card'><b>Cerradas</b><h2>{len(cerradas)}</h2></div>", unsafe_allow_html=True)
 
 st.divider()
 
