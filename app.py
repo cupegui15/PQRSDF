@@ -46,7 +46,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==================================================
-# CONEXIÓN
+# CONEXIÓN GOOGLE
 # ==================================================
 @st.cache_resource
 def conectar():
@@ -62,55 +62,24 @@ def conectar():
 
 client = conectar()
 sh = client.open_by_key(st.secrets["GOOGLE_SHEETS_ID"])
-sheet_pqrs = sh.worksheet("PQRSDF")
-sheet_festivos = sh.worksheet("Festivos")
+sheet = sh.worksheet("PQRSDF")
 
 # ==================================================
-# CARGA DATOS
+# CARGAR DATOS
 # ==================================================
 @st.cache_data(ttl=300)
 def cargar():
-    df = pd.DataFrame(sheet_pqrs.get_all_records())
-    festivos = pd.DataFrame(sheet_festivos.get_all_records())
-    return df, festivos
+    return pd.DataFrame(sheet.get_all_records())
 
-df, festivos_df = cargar()
+df = cargar()
 
 # ==================================================
-# FESTIVOS
+# LIMPIEZA
 # ==================================================
-festivos = []
-
-if not festivos_df.empty:
-    festivos_df.columns = festivos_df.columns.str.strip().str.lower()
-    if {'dia','mes','año'}.issubset(festivos_df.columns):
-        festivos_df[['dia','mes','año']] = festivos_df[['dia','mes','año']].apply(pd.to_numeric, errors='coerce')
-        festivos_df = festivos_df.dropna()
-        festivos = [
-            datetime(int(a),int(m),int(d)).date()
-            for a,m,d in zip(festivos_df['año'],festivos_df['mes'],festivos_df['dia'])
-        ]
-
-# ==================================================
-# DÍAS HÁBILES
-# ==================================================
-def dias_habiles(inicio, fin):
-    if pd.isna(inicio):
-        return 0
-    if pd.isna(fin):
-        fin = datetime.now()
-    return np.busday_count(inicio.date(), fin.date(), holidays=festivos)
-
-df['Fecha radicación'] = pd.to_datetime(df['Fecha radicación'], errors='coerce')
-df['Fecha cierre'] = pd.to_datetime(df['Fecha cierre'], errors='coerce')
-df['Dias_calculados'] = df.apply(lambda x: dias_habiles(x['Fecha radicación'], x['Fecha cierre']), axis=1)
-
 df['AÑO'] = pd.to_numeric(df['AÑO'], errors='coerce')
 df['Mes'] = pd.to_numeric(df['Mes'], errors='coerce')
-df['Semestre'] = df['Mes'].apply(lambda x: "Semestre 1" if x <= 6 else "Semestre 2")
-
-df['Estado'] = df['Estado'].astype(str).str.lower()
-df['SLA'] = df['SLA'].astype(str).str.lower()
+df['Categoría'] = df['Categoría'].astype(str).str.lower().str.strip()
+df['SLA'] = df['SLA'].astype(str).str.lower().str.strip()
 
 # ==================================================
 # SIDEBAR
@@ -121,77 +90,98 @@ st.sidebar.markdown("### 🧭 Navegación")
 pagina = st.sidebar.radio(
     "",
     [
-        "📊 Tablero General",
-        "📈 Tiempo promedio por área",
-        "🏆 Ranking de cumplimiento",
-        "📊 Comparativos",
         "🎯 Indicador por Área",
         "📥 Exportación mensual"
     ]
 )
 
 # ==================================================
-# FILTROS CONDICIONALES
+# 🎯 INDICADOR POR ÁREA
 # ==================================================
-if pagina != "📥 Exportación mensual":
+if pagina == "🎯 Indicador por Área":
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🎛 Filtros")
+    st.markdown("## 🎯 Indicador de Cumplimiento por Área")
 
-    col1, col2 = st.sidebar.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        anio_f = st.multiselect("Año", sorted(df['AÑO'].dropna().unique()))
-    with col2:
-        semestre_f = st.multiselect("Semestre", sorted(df['Semestre'].dropna().unique()))
+        anio_ind = st.selectbox(
+            "Año",
+            sorted(df['AÑO'].dropna().unique())
+        )
 
-    col3, col4 = st.sidebar.columns(2)
+    with col2:
+        mes_ind = st.selectbox(
+            "Mes (opcional)",
+            ["Todos"] + sorted(df['Mes'].dropna().unique())
+        )
 
     with col3:
-        mes_f = st.multiselect("Mes", sorted(df['Mes'].dropna().unique()))
-    with col4:
-        sla_f = st.multiselect("SLA", sorted(df['SLA'].dropna().unique()))
+        area_ind = st.selectbox(
+            "Área",
+            ["Todas"] + sorted(df['Area principal'].dropna().unique())
+        )
 
-    area_f = st.sidebar.multiselect("Área", sorted(df['Area principal'].dropna().unique()))
-    categoria_f = st.sidebar.multiselect("Categoría", sorted(df['Categoría'].dropna().unique()))
+    df_ind = df[df['AÑO'] == anio_ind]
 
-    df_filtrado = df.copy()
+    if mes_ind != "Todos":
+        df_ind = df_ind[df_ind['Mes'] == mes_ind]
 
-    if anio_f:
-        df_filtrado = df_filtrado[df_filtrado['AÑO'].isin(anio_f)]
-    if semestre_f:
-        df_filtrado = df_filtrado[df_filtrado['Semestre'].isin(semestre_f)]
-    if mes_f:
-        df_filtrado = df_filtrado[df_filtrado['Mes'].isin(mes_f)]
-    if area_f:
-        df_filtrado = df_filtrado[df_filtrado['Area principal'].isin(area_f)]
-    if categoria_f:
-        df_filtrado = df_filtrado[df_filtrado['Categoría'].isin(categoria_f)]
-    if sla_f:
-        df_filtrado = df_filtrado[df_filtrado['SLA'].isin(sla_f)]
+    if area_ind != "Todas":
+        df_ind = df_ind[df_ind['Area principal'] == area_ind]
 
-else:
-    df_filtrado = df.copy()
+    categorias_validas = [
+        "petición",
+        "queja",
+        "reclamo",
+        "derecho de petición"
+    ]
+
+    df_ind = df_ind[df_ind['Categoría'].isin(categorias_validas)]
+
+    if df_ind.empty:
+        st.warning("No hay registros para el periodo seleccionado.")
+        st.stop()
+
+    resumen = (
+        df_ind
+        .groupby('Area principal')
+        .agg(
+            Total=('Categoría', 'count'),
+            Cumplen=('SLA', lambda x: (x.str.contains("si")).sum())
+        )
+        .reset_index()
+    )
+
+    resumen['Indicador (%)'] = round(
+        (resumen['Cumplen'] / resumen['Total']) * 100,
+        2
+    )
+
+    st.dataframe(resumen, use_container_width=True)
+
+    fig = px.bar(
+        resumen,
+        x='Area principal',
+        y='Indicador (%)',
+        text='Indicador (%)',
+        color='Indicador (%)',
+        color_continuous_scale='RdYlGn',
+        range_y=[0,100],
+        title="Cumplimiento SLA por Área"
+    )
+
+    fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+    fig.update_layout(xaxis_tickangle=-30)
+
+    st.plotly_chart(fig, use_container_width=True)
 
 # ==================================================
-# DASHBOARDS
+# 📥 EXPORTACIÓN
 # ==================================================
-if pagina == "📊 Tablero General":
-
-    en_proceso = df_filtrado[df_filtrado['Estado'] != 'cerrado']
-    cerradas = df_filtrado[df_filtrado['Estado'] == 'cerrado']
-    vencidas = df_filtrado[(df_filtrado['SLA'].str.contains("no")) & (df_filtrado['Estado'] != 'cerrado')]
-
-    c1,c2,c3,c4 = st.columns(4)
-
-    c1.metric("Total", len(df_filtrado))
-    c2.metric("En proceso", len(en_proceso))
-    c3.metric("Vencidas", len(vencidas))
-    c4.metric("Cerradas", len(cerradas))
-
 elif pagina == "📥 Exportación mensual":
 
-    st.markdown("### 📥 Descarga por Área y Año")
+    st.markdown("## 📥 Descarga por Área y Año")
 
     col1, col2, col3 = st.columns(3)
 
@@ -213,22 +203,19 @@ elif pagina == "📥 Exportación mensual":
             ["Todos"] + sorted(df['Mes'].dropna().unique())
         )
 
-    # 🔥 Filtro base: Área + Año
     df_export = df[
         (df['Area principal'] == area_exp) &
         (df['AÑO'] == anio_exp)
     ]
 
-    nombre_mes = ""
-
-    # Diccionario de meses
     meses_nombre = {
-        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
-        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
-        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+        1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",
+        5:"Mayo",6:"Junio",7:"Julio",8:"Agosto",
+        9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"
     }
 
-    # 🔥 Si selecciona mes específico
+    nombre_mes = ""
+
     if mes_exp != "Todos":
         df_export = df_export[df_export['Mes'] == mes_exp]
         nombre_mes = f"_{meses_nombre.get(mes_exp, mes_exp)}"
@@ -237,14 +224,12 @@ elif pagina == "📥 Exportación mensual":
         st.warning("No hay registros para el periodo seleccionado.")
     else:
 
-        # Limpiar nombre del área
         area_nombre = (
             area_exp.replace(" ", "")
             .replace("/", "")
             .replace("-", "")
         )
 
-        # 🔥 Construir nombre final
         nombre_archivo = f"PQRSDF_{area_nombre}_{anio_exp}{nombre_mes}.xlsx"
 
         buffer = BytesIO()
