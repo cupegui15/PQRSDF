@@ -22,7 +22,6 @@ st.set_page_config(
 URL_LOGO_UR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQY0ZMIXOVuzLond_jNv713shc6TmUWej0JDQ&s"
 
 st.sidebar.image(URL_LOGO_UR, width=120)
-st.sidebar.markdown("### 🧭 Navegación")
 
 pagina = st.sidebar.radio(
     "",
