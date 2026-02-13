@@ -43,7 +43,8 @@ html, body, .stApp { background-color:var(--gris)!important; font-family:"Segoe 
 st.markdown(f"""
 <div class="banner">
     <div>
-        <h2>Tablero de Control PQRSDF</h2>       
+        <h2>Tablero de Control PQRSDF</h2>
+        <p>Seguimiento institucional y cumplimiento SLA</p>
     </div>
     <div><img src="{URL_LOGO_UR}" width="100"></div>
 </div>
@@ -89,6 +90,7 @@ df['Fecha cierre'] = pd.to_datetime(df['Fecha cierre'], errors='coerce')
 # SIDEBAR
 # ==================================================
 st.sidebar.image(URL_LOGO_UR, width=120)
+st.sidebar.markdown("### 🧭 Navegación")
 
 pagina = st.sidebar.radio(
     "",
@@ -111,7 +113,6 @@ if pagina == "📌 Seguimiento Diario":
 
     with col1:
         area_seg = st.selectbox("Área", ["Todas"] + sorted(df['Area principal'].dropna().unique()))
-
     with col2:
         anio_seg = st.selectbox("Año", sorted(df['AÑO'].dropna().unique()))
 
@@ -138,7 +139,9 @@ if pagina == "📌 Seguimiento Diario":
         st.warning("No hay registros con los filtros seleccionados.")
         st.stop()
 
-    # 🔥 Cálculo seguro de días restantes
+    # ==================================================
+    # CÁLCULO DE DÍAS RESTANTES
+    # ==================================================
     hoy = pd.Timestamp.today()
 
     df_seg['Fecha cierre'] = pd.to_datetime(df_seg['Fecha cierre'], errors='coerce')
@@ -151,26 +154,50 @@ if pagina == "📌 Seguimiento Diario":
         (df_seg['Dias_restantes'] >= 0)
     ]
 
+    vencidos = df_seg[
+        (df_seg['Estado'] != "cerrado") &
+        (df_seg['Dias_restantes'] < 0)
+    ]
+
+    # ==================================================
+    # MÉTRICAS
+    # ==================================================
     total = len(df_seg)
     en_proceso = len(df_seg[df_seg['Estado'] != "cerrado"])
     cerrados = len(df_seg[df_seg['Estado'] == "cerrado"])
     no_cumplen = len(df_seg[df_seg['SLA'].str.contains("no")])
     proximos_vencer = len(proximos)
+    vencidos_en_curso = len(vencidos)
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
 
     c1.metric("Total Casos", total)
     c2.metric("En Proceso", en_proceso)
     c3.metric("Cerrados", cerrados)
     c4.metric("No Cumplen", no_cumplen)
     c5.metric("Próximos a Vencer", proximos_vencer)
+    c6.metric("🚨 Vencidos en Curso", vencidos_en_curso)
 
     st.divider()
 
+    # ==================================================
+    # TABLA PRÓXIMOS
+    # ==================================================
     if not proximos.empty:
         st.markdown("### ⚠️ Casos Próximos a Vencer")
         st.dataframe(
             proximos[['num caso','Area principal','Categoría','Fecha cierre','Dias_restantes','SLA','Estado']]
+            .sort_values('Dias_restantes'),
+            use_container_width=True
+        )
+
+    # ==================================================
+    # TABLA VENCIDOS
+    # ==================================================
+    if not vencidos.empty:
+        st.markdown("### 🚨 Casos Vencidos en Curso")
+        st.dataframe(
+            vencidos[['num caso','Area principal','Categoría','Fecha cierre','Dias_restantes','SLA','Estado']]
             .sort_values('Dias_restantes'),
             use_container_width=True
         )
@@ -193,7 +220,7 @@ elif pagina == "🔎 Búsqueda de Caso":
             st.dataframe(resultado, use_container_width=True)
 
 # ==================================================
-# 🎯 INDICADOR
+# 🎯 INDICADOR POR ÁREA
 # ==================================================
 elif pagina == "🎯 Indicador por Área":
 
