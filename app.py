@@ -221,7 +221,7 @@ elif pagina == "📥 Exportación mensual":
         )
 
 # ==================================================
-# 📧 NOTIFICACIONES
+# 📧 NOTIFICACIONES CON FIRMA
 # ==================================================
 elif pagina == "📧 Notificaciones":
 
@@ -248,8 +248,11 @@ elif pagina == "📧 Notificaciones":
             if df_area.empty:
                 continue
 
+            # ==============================
+            # TABLA HTML
+            # ==============================
             tabla_html = """
-            <table border='1' cellpadding='6' cellspacing='0'>
+            <table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>
             <tr style='background-color:#9B0029;color:white;'>
                 <th>Caso</th>
                 <th>Vencimiento</th>
@@ -269,14 +272,55 @@ elif pagina == "📧 Notificaciones":
 
             tabla_html += "</table>"
 
-            msg = MIMEMultipart()
+            # ==============================
+            # CUERPO DEL CORREO
+            # ==============================
+            cuerpo = f"""
+            <html>
+            <body>
+            <p>Buen día,</p>
+
+            <p>Estos son los casos en proceso del área <strong>{area}</strong>:</p>
+
+            {tabla_html}
+
+            <p><strong>Los casos marcados en rojo están vencidos.</strong></p>
+
+            <p>Se adjunta archivo Excel con el detalle completo.</p>
+
+            <br>
+            <img src="cid:firma_imagen">
+            </body>
+            </html>
+            """
+
+            # ==============================
+            # CREAR MENSAJE
+            # ==============================
+            msg = MIMEMultipart('related')
             msg['From'] = st.secrets["EMAIL_USER"]
             msg['To'] = "oportunidadesdemejora@urosario.edu.co"
             msg['Cc'] = "oportunidadesdemejora@urosario.edu.co"
             msg['Subject'] = f"PQRSDF - Casos en proceso - {area}"
 
-            msg.attach(MIMEText(tabla_html, 'html'))
+            msg_alternative = MIMEMultipart('alternative')
+            msg.attach(msg_alternative)
 
+            msg_text = MIMEText(cuerpo, 'html')
+            msg_alternative.attach(msg_text)
+
+            # ==============================
+            # ADJUNTAR FIRMA INLINE
+            # ==============================
+            with open("firma.png", "rb") as img:
+                firma = MIMEApplication(img.read(), _subtype="png")
+                firma.add_header('Content-ID', '<firma_imagen>')
+                firma.add_header('Content-Disposition', 'inline', filename="firma.png")
+                msg.attach(firma)
+
+            # ==============================
+            # ADJUNTAR EXCEL
+            # ==============================
             buffer = BytesIO()
             df_area.to_excel(buffer, index=False)
             buffer.seek(0)
@@ -285,15 +329,23 @@ elif pagina == "📧 Notificaciones":
             adj['Content-Disposition'] = f'attachment; filename="PQRSDF_{area}.xlsx"'
             msg.attach(adj)
 
-            server = smtplib.SMTP("smtp.office365.com", 587)
-            server.starttls()
-            server.login(
-                st.secrets["EMAIL_USER"],
-                st.secrets["EMAIL_PASSWORD"]
-            )
-            server.send_message(msg)
-            server.quit()
+            # ==============================
+            # ENVIAR
+            # ==============================
+            try:
+                server = smtplib.SMTP("smtp.office365.com", 587)
+                server.starttls()
+                server.login(
+                    st.secrets["EMAIL_USER"],
+                    st.secrets["EMAIL_PASSWORD"]
+                )
+                server.send_message(msg)
+                server.quit()
 
-            enviados += 1
+                enviados += 1
+
+            except Exception as e:
+                st.error(f"Error enviando correo para {area}: {e}")
+                continue
 
         st.success(f"✅ Se enviaron {enviados} notificaciones.")
