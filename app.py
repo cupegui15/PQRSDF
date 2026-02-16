@@ -276,24 +276,24 @@ elif pagina == "📧 Notificaciones":
             </tr>
             """
 
-            for _, row in df_area.iterrows():
+for _, row in df_area.iterrows():
 
-                dias = row['Dias_restantes']
-                fecha = row['Fecha cierre']
-                categoria = row.get('Categoría', '')
-                ext_tiempos = row.get('Ext de tiempos', '')
+    dias = row['Dias_restantes']
+    fecha = row['Fecha cierre']
+    categoria = row.get('Categoría', '')  # ← la columna tiene tilde
+    ext_tiempos = row.get('Ext de tiempos', '')
 
-                color = "background-color:#ffcccc;" if pd.notnull(dias) and dias < 0 else ""
+    color = "background-color:#ffcccc;" if pd.notnull(dias) and dias < 0 else ""
 
-                tabla_html += f"""
-                <tr style='{color}'>
-                    <td>{row['num caso']}</td>
-                    <td>{categoría}</td>
-                    <td>{ext_tiempos}</td>
-                    <td>{fecha.date() if pd.notnull(fecha) else ''}</td>
-                    <td>{dias if pd.notnull(dias) else ''}</td>
-                </tr>
-                """
+    tabla_html += f"""
+    <tr style='{color}'>
+        <td>{row['num caso']}</td>
+        <td>{categoria}</td>
+        <td>{ext_tiempos}</td>
+        <td>{fecha.date() if pd.notnull(fecha) else ''}</td>
+        <td>{dias if pd.notnull(dias) else ''}</td>
+    </tr>
+    """
 
             tabla_html += "</table>"
 
