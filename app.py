@@ -225,6 +225,10 @@ elif pagina == "📥 Exportación mensual":
 # ==================================================
 elif pagina == "📧 Notificaciones":
 
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
     st.markdown("## 📧 Envío Manual de Notificaciones")
 
     # Cargar responsables
@@ -246,7 +250,13 @@ elif pagina == "📧 Notificaciones":
         areas = df_notif['Area principal'].dropna().unique()
         enviados = 0
 
-        FIRMA_BASE64 = """PEGA_AQUI_TU_BASE64_COMPLETO"""
+        # Correos en copia
+        CC_CORREOS = [
+            "cristian.upegui@urosario.edu.co",
+            "sandrapa.guzman@urosario.edu.co",
+            "yesid.garzon@urosario.edu.co",
+            "oportunidadesdemejora@urosario.edu.co"
+        ]
 
         for area in areas:
 
@@ -296,7 +306,7 @@ elif pagina == "📧 Notificaciones":
                 <th>Caso</th>
                 <th>Categoría</th>
                 <th>Ext de tiempos</th>
-                <th>Fecha Vencimiento</th>
+                <th>Fecha cierre</th>
                 <th>Días Restantes</th>
             </tr>
             """
@@ -317,82 +327,63 @@ elif pagina == "📧 Notificaciones":
                     <td>{row['num caso']}</td>
                     <td>{categoria}</td>
                     <td>{ext_tiempos}</td>
-                    <td>{fecha.date() if pd.notnull(fecha) else ''}</td>
+                    <td>{fecha.strftime('%Y-%m-%d') if pd.notnull(fecha) else ''}</td>
                     <td>{dias if pd.notnull(dias) else ''}</td>
                 </tr>
                 """
 
             tabla_html += "</table>"
 
-            cuerpo = f"""
+            # ==============================
+            # ARMAR CORREO
+            # ==============================
+
+            mensaje = MIMEMultipart("alternative")
+            mensaje["Subject"] = f"🔔 Notificación PQRSDF - {area}"
+            mensaje["From"] = "oportunidadesdemejora@urosario.edu.co"
+            mensaje["To"] = ", ".join(destinatarios)
+            mensaje["Cc"] = ", ".join(CC_CORREOS)
+
+            html = f"""
             <html>
-            <body style="font-family: Arial, sans-serif;">
+            <body style="font-family:Arial;">
+                <p>Estimados,</p>
 
-            <p>Buen día,</p>
+                <p>Se relacionan los casos PQRSDF pendientes de gestión para el área <b>{area}</b>:</p>
 
-            <p>Estos son los casos en proceso del área <strong>{area}</strong>:</p>
+                {tabla_html}
 
-            {tabla_html}
+                <br>
+                <p>Por favor revisar y gestionar dentro de los tiempos establecidos.</p>
 
-            <p><strong>Los casos marcados en rojo están vencidos.</strong></p>
-
-            <p>Se adjunta archivo Excel con el detalle completo del área.</p>
-
-            <br><br>
-            <img src="{FIRMA_BASE64}" width="600">
-
+                <p style="color:#9B0029;"><b>Oficina de Oportunidades de Mejora</b></p>
             </body>
             </html>
             """
 
-            msg = MIMEMultipart()
-            msg['From'] = st.secrets["EMAIL_USER"]
-            msg['To'] = ", ".join(destinatarios)
-            msg['Cc'] = (
-                "cristian.upegui@urosario.edu.co,"
-                "sandrap.guzman@urosario.edu.co,"
-                "yesid.garzon@urosario.edu.co,"
-                "oportunidadesdemejora@urosario.edu.co"
-            )
+            parte_html = MIMEText(html, "html")
+            mensaje.attach(parte_html)
 
-            msg['Subject'] = f"PQRSDF - Casos en proceso - {area}"
-            msg.attach(MIMEText(cuerpo, 'html'))
-
-            # Adjuntar Excel
-            buffer = BytesIO()
-            df_area.to_excel(buffer, index=False)
-            buffer.seek(0)
-
-            adj = MIMEApplication(buffer.read(), Name=f"PQRSDF_{area}.xlsx")
-            adj['Content-Disposition'] = f'attachment; filename="PQRSDF_{area}.xlsx"'
-            msg.attach(adj)
+            # ==============================
+            # ENVÍO SMTP
+            # ==============================
 
             try:
-                server = smtplib.SMTP("smtp.office365.com", 587)
-                server.starttls()
-                server.login(
-                    st.secrets["EMAIL_USER"],
-                    st.secrets["EMAIL_PASSWORD"]
-                )
+                with smtplib.SMTP("smtp.office365.com", 587) as server:
+                    server.starttls()
+                    server.login(st.secrets["EMAIL_USER"], st.secrets["EMAIL_PASSWORD"])
+                    server.sendmail(
+                        mensaje["From"],
+                        destinatarios + CC_CORREOS,
+                        mensaje.as_string()
+                    )
 
-                todos = destinatarios + [
-                    "cristian.upegui@urosario.edu.co",
-                    "sandrap.guzman@urosario.edu.co",
-                    "yesid.garzon@urosario.edu.co",
-                    "oportunidadesdemejora@urosario.edu.co"
-                ]
-
-                server.sendmail(
-                    st.secrets["EMAIL_USER"],
-                    todos,
-                    msg.as_string()
-                )
-
-                server.quit()
                 enviados += 1
 
             except Exception as e:
-                st.error(f"Error enviando correo para {area}: {e}")
-                continue
+                st.error(f"Error enviando correo a {area}: {e}")
 
-        st.success(f"✅ Se enviaron {enviados} notificaciones.")
+        if enviados > 0:
+            st.success(f"✅ Notificaciones enviadas correctamente a {enviados} áreas.")
+        else:
+            st.warning("No se enviaron notificaciones.")
