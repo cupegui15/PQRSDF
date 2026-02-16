@@ -231,7 +231,6 @@ elif pagina == "📧 Notificaciones":
             st.stop()
 
         enviados = 0
-
         areas = df_notif['Area principal'].dropna().unique()
 
         for area in areas:
@@ -251,9 +250,10 @@ elif pagina == "📧 Notificaciones":
             lista_responsables = []
 
             if dependencia is not None:
+
                 filtro = (
-                    (responsables_df['area principal'].str.strip() == str(area).strip()) &
-                    (responsables_df['dependencia'].str.strip() == str(dependencia).strip())
+                    (responsables_df['area principal'].astype(str).str.strip() == str(area).strip()) &
+                    (responsables_df['dependencia'].astype(str).str.strip() == str(dependencia).strip())
                 )
 
                 match = responsables_df[filtro]
@@ -264,9 +264,13 @@ elif pagina == "📧 Notificaciones":
 
                     if pd.notna(responsable_raw):
 
+                        # 🔹 NORMALIZAR SEPARADORES
+                        correos_normalizados = str(responsable_raw)
+                        correos_normalizados = correos_normalizados.replace(",", "//")
+
                         lista_responsables = [
                             correo.strip()
-                            for correo in str(responsable_raw).split("//")
+                            for correo in correos_normalizados.split("//")
                             if correo.strip() and "@" in correo
                         ]
 
