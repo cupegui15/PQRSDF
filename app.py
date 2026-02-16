@@ -280,7 +280,7 @@ elif pagina == "📧 Notificaciones":
 
                 dias = row['Dias_restantes']
                 fecha = row['Fecha cierre']
-                categoria = row.get('Categoria', '')
+                categoria = row.get('Categoría', '')
                 ext_tiempos = row.get('Ext de tiempos', '')
 
                 color = "background-color:#ffcccc;" if pd.notnull(dias) and dias < 0 else ""
@@ -288,7 +288,7 @@ elif pagina == "📧 Notificaciones":
                 tabla_html += f"""
                 <tr style='{color}'>
                     <td>{row['num caso']}</td>
-                    <td>{categoria}</td>
+                    <td>{categoría}</td>
                     <td>{ext_tiempos}</td>
                     <td>{fecha.date() if pd.notnull(fecha) else ''}</td>
                     <td>{dias if pd.notnull(dias) else ''}</td>
