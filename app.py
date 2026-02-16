@@ -360,13 +360,6 @@ elif pagina == "📧 Notificaciones":
             msg['From'] = st.secrets["EMAIL_USER"]
             msg['To'] = ", ".join(lista_responsables)
 
-            msg['Cc'] = (
-                "cristian.upegui@urosario.edu.co,"
-                #"sandrapa.guzman@urosario.edu.co,"
-                #"yesid.garzon@urosario.edu.co,"
-                #"oportunidadesdemejora@urosario.edu.co"
-            )
-
             msg['Subject'] = f"PQRSDF - Casos en proceso - {area.title()}"
 
             msg.attach(MIMEText(cuerpo, 'html'))
@@ -394,7 +387,7 @@ elif pagina == "📧 Notificaciones":
                 )
 
                 destinatarios = lista_responsables + [
-                    #"cristian.upegui@urosario.edu.co",
+                    "cristian.upegui@urosario.edu.co",
                     #"sandrapa.guzman@urosario.edu.co",
                     #"yesid.garzon@urosario.edu.co",
                     #"oportunidadesdemejora@urosario.edu.co"
