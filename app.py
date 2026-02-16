@@ -260,27 +260,25 @@ elif pagina == "📧 Notificaciones":
 
             df_area = df_area.sort_values("Dias_restantes")
 
-            # ==============================
-            # TABLA HTML
-            # ==============================
-            tabla_html = """
-            <table border='1' cellpadding='6' cellspacing='0' 
-            style='border-collapse:collapse; font-family:Arial; font-size:13px;'>
-
-            <tr style='background-color:#9B0029;color:white;'>
-                <th>Caso</th>
-                <th>Categoría</th>
-                <th>Ext. tiempos</th>
-                <th>Fecha Vencimiento</th>
-                <th>Días Restantes</th>
-            </tr>
-            """
+# ==============================
+# TABLA HTML
+# ==============================
+tabla_html = """
+<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>
+<tr style='background-color:#9B0029;color:white;'>
+    <th>Caso</th>
+    <th>Categoría</th>
+    <th>Ext de tiempos</th>
+    <th>Vencimiento</th>
+    <th>Días</th>
+</tr>
+"""
 
 for _, row in df_area.iterrows():
 
     dias = row['Dias_restantes']
     fecha = row['Fecha cierre']
-    categoria = row.get('Categoría', '')  # ← la columna tiene tilde
+    categoria = row.get('Categoría', '')
     ext_tiempos = row.get('Ext de tiempos', '')
 
     color = "background-color:#ffcccc;" if pd.notnull(dias) and dias < 0 else ""
@@ -295,7 +293,8 @@ for _, row in df_area.iterrows():
     </tr>
     """
 
-            tabla_html += "</table>"
+tabla_html += "</table>"
+
 
             # ==============================
             # CUERPO DEL CORREO
