@@ -291,9 +291,9 @@ elif pagina == "📧 Notificaciones":
 
             cc_fijo = [
                 "cristian.upegui@urosario.edu.co",
-                "sandrapa.guzman@urosario.edu.co",
-                "yesid.garzon@urosario.edu.co",
-                "oportunidadesdemejora@urosario.edu.co"
+                #"sandrapa.guzman@urosario.edu.co",
+                #"yesid.garzon@urosario.edu.co",
+                #"oportunidadesdemejora@urosario.edu.co"
             ]
 
             # ==============================
