@@ -362,9 +362,9 @@ elif pagina == "📧 Notificaciones":
 
             msg['Cc'] = (
                 "cristian.upegui@urosario.edu.co,"
-                "sandrapa.guzman@urosario.edu.co,"
-                "yesid.garzon@urosario.edu.co,"
-                "oportunidadesdemejora@urosario.edu.co"
+                #"sandrapa.guzman@urosario.edu.co,"
+                #"yesid.garzon@urosario.edu.co,"
+                #"oportunidadesdemejora@urosario.edu.co"
             )
 
             msg['Subject'] = f"PQRSDF - Casos en proceso - {area.title()}"
@@ -394,10 +394,10 @@ elif pagina == "📧 Notificaciones":
                 )
 
                 destinatarios = lista_responsables + [
-                    "cristian.upegui@urosario.edu.co",
-                    "sandrapa.guzman@urosario.edu.co",
-                    "yesid.garzon@urosario.edu.co",
-                    "oportunidadesdemejora@urosario.edu.co"
+                    #"cristian.upegui@urosario.edu.co",
+                    #"sandrapa.guzman@urosario.edu.co",
+                    #"yesid.garzon@urosario.edu.co",
+                    #"oportunidadesdemejora@urosario.edu.co"
                 ]
 
                 server.sendmail(
