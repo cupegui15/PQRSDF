@@ -252,10 +252,7 @@ elif pagina == "📧 Notificaciones":
 
         # Correos en copia
         CC_CORREOS = [
-            "cristian.upegui@urosario.edu.co",
-            "sandrapa.guzman@urosario.edu.co",
-            "yesid.garzon@urosario.edu.co",
-            "oportunidadesdemejora@urosario.edu.co"
+            "cristian.upegui@urosario.edu.co"
         ]
 
         for area in areas:
