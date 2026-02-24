@@ -70,9 +70,6 @@ df['Categoría'] = df['Categoría'].astype(str).str.strip()
 df['SLA'] = df['SLA'].astype(str).str.lower().str.strip()
 df['Fecha cierre'] = pd.to_datetime(df['Fecha cierre'], errors='coerce')
 
-# ==================================================
-# 📌 SEGUIMIENTO DIARIO
-# ==================================================
 if pagina == "📌 Seguimiento Diario":
 
     st.markdown("## 📌 Seguimiento de Casos")
@@ -80,39 +77,87 @@ if pagina == "📌 Seguimiento Diario":
     col1, col2 = st.columns(2)
 
     with col1:
-        area = st.selectbox("Área", ["Todas"] + sorted(df['Area principal'].dropna().unique()))
+        area = st.selectbox(
+            "Área",
+            ["Todas"] + sorted(df['Area principal'].dropna().unique())
+        )
 
     with col2:
-        anio = st.selectbox("Año", sorted(df['AÑO'].dropna().unique()))
+        anio = st.selectbox(
+            "Año",
+            sorted(df['AÑO'].dropna().unique())
+        )
 
+    # 🔹 FILTRO BASE
     df_seg = df[df['AÑO'] == anio].copy()
 
     if area != "Todas":
         df_seg = df_seg[df_seg['Area principal'] == area]
 
+    # 🔹 ASEGURAR DATETIME
+    df_seg['Fecha cierre'] = pd.to_datetime(df_seg['Fecha cierre'], errors='coerce')
+
     hoy = pd.Timestamp.today().normalize()
-    df_seg['Dias_restantes'] = (df_seg['Fecha cierre'] - hoy).dt.days
 
-    proximos = df_seg[
-        (df_seg['Estado'] != "cerrado") &
-        (df_seg['Dias_restantes'] <= 3) &
-        (df_seg['Dias_restantes'] >= 0)
+    df_seg['Dias_restantes'] = (
+        df_seg['Fecha cierre'] - hoy
+    ).dt.days
+
+    # 🔹 EN PROCESO
+    df_en_proceso = df_seg[df_seg['Estado'] != "cerrado"]
+
+    # 🔹 PRÓXIMOS A VENCER (0 a 3 días)
+    proximos = df_en_proceso[
+        (df_en_proceso['Dias_restantes'] <= 3) &
+        (df_en_proceso['Dias_restantes'] >= 0)
     ]
 
-    vencidos = df_seg[
-        (df_seg['Estado'] != "cerrado") &
-        (df_seg['Dias_restantes'] < 0)
+    # 🔹 VENCIDOS
+    vencidos = df_en_proceso[
+        df_en_proceso['Dias_restantes'] < 0
     ]
 
+    # 🔹 KPIs
     c1, c2, c3, c4, c5, c6 = st.columns(6)
 
     c1.metric("Total", len(df_seg))
-    c2.metric("En Proceso", len(df_seg[df_seg['Estado'] != "cerrado"]))
+    c2.metric("En Proceso", len(df_en_proceso))
     c3.metric("Cerrados", len(df_seg[df_seg['Estado'] == "cerrado"]))
-    c4.metric("No Cumplen SLA", len(df_seg[df_seg['SLA'].str.contains("no")]))
+    c4.metric("No Cumplen SLA", len(df_seg[df_seg['SLA'].str.contains("no", na=False)]))
     c5.metric("Próximos a Vencer", len(proximos))
     c6.metric("🚨 Vencidos", len(vencidos))
 
+    st.markdown("---")
+
+    # ==================================================
+    # TABLA PRÓXIMOS
+    # ==================================================
+    if not proximos.empty:
+
+        st.markdown("### ⚠️ Casos Próximos a Vencer")
+
+        st.dataframe(
+            proximos[
+                ['num caso','Area principal','Categoría',
+                 'Fecha cierre','Dias_restantes']
+            ].sort_values('Dias_restantes'),
+            use_container_width=True
+        )
+
+    # ==================================================
+    # TABLA VENCIDOS
+    # ==================================================
+    if not vencidos.empty:
+
+        st.markdown("### 🚨 Casos Vencidos en Curso")
+
+        st.dataframe(
+            vencidos[
+                ['num caso','Area principal','Categoría',
+                 'Fecha cierre','Dias_restantes']
+            ].sort_values('Dias_restantes'),
+            use_container_width=True
+        )
 # ==================================================
 # 🎯 INDICADOR POR ÁREA
 # ==================================================
